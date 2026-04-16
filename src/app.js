@@ -81,6 +81,26 @@ app.use(hpp());
 app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(apiLimiter);
 
+app.get('/', (req, res) => {
+  void req;
+
+  res.status(200).json({
+    success: true,
+    message: 'Bangla Blood API is running',
+    docs: '/api/v1/health',
+  });
+});
+
+app.get('/api/v1', (req, res) => {
+  void req;
+
+  res.status(200).json({
+    success: true,
+    message: 'Bangla Blood API v1',
+    health: '/api/v1/health',
+  });
+});
+
 app.use('/api/v1', routes);
 
 app.use(notFoundHandler);
