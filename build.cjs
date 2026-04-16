@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Build script to bundle ESM server code into CommonJS for Vercel
- * Converts src/app.js (+ all dependencies) → api/handler.js (CommonJS via wrapper)
+ * Converts src/serverless-entry.js (+ all dependencies) → api/handler.js (CommonJS via wrapper)
  */
 
 const esbuild = require('esbuild');
@@ -10,7 +10,7 @@ const fs = require('fs');
 
 const outFile = path.join(__dirname, 'api', 'handler.js');
 const esmBundleFile = path.join(__dirname, 'api', '_handler.esm.mjs');
-const entryPoint = path.join(__dirname, 'src', 'app.js');
+const entryPoint = path.join(__dirname, 'src', 'serverless-entry.js');
 
 // Ensure api directory exists
 const apiDir = path.join(__dirname, 'api');
@@ -38,17 +38,22 @@ esbuild
     
     // Create a CommonJS wrapper that uses import()
     const wrapper = `// Vercel Serverless Handler (CommonJS wrapper around ESM)
-let appInstance = null;
+let requestHandler = null;
 
-async function initializeApp() {
-  if (appInstance) return appInstance;
+async function initializeHandler() {
+  if (requestHandler) return requestHandler;
   
   try {
     const imported = await import('./_handler.esm.mjs');
-    appInstance = imported.app;
-    return appInstance;
+    requestHandler = imported.handler || imported.default;
+
+    if (typeof requestHandler !== 'function') {
+      throw new Error('Bundled serverless handler export is missing or invalid');
+    }
+
+    return requestHandler;
   } catch (error) {
-    console.error('Failed to load app from ESM bundle:', error);
+    console.error('Failed to load serverless handler from ESM bundle:', error);
     throw error;
   }
 }
@@ -57,13 +62,13 @@ let initialized = false;
 
 async function handler(req, res) {
   try {
-    // Initialize app on first request
+    // Initialize handler on first request
     if (!initialized) {
-      await initializeApp();
+      await initializeHandler();
       initialized = true;
     }
     
-    return appInstance(req, res);
+    return requestHandler(req, res);
   } catch (error) {
     console.error('Handler error:', error);
     res.status(500).json({

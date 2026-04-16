@@ -2,20 +2,6 @@
 // This file wraps the bundled Express app with CORS and connection handling.
 
 const baseAppHandler = require('./handler.js');
-let databaseConnectionPromise = null;
-
-const ensureDatabaseConnection = async () => {
-  if (!databaseConnectionPromise) {
-    databaseConnectionPromise = import('../src/config/db.js')
-      .then(({ connectDatabase }) => connectDatabase())
-      .catch((error) => {
-        databaseConnectionPromise = null;
-        throw error;
-      });
-  }
-
-  return databaseConnectionPromise;
-};
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://blood-donaction-clint.vercel.app',
@@ -37,13 +23,26 @@ const getAllowedOrigins = () => {
   return new Set([...configured, ...DEFAULT_ALLOWED_ORIGINS]);
 };
 
+const isProjectVercelOrigin = (origin) => {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (!['http:', 'https:'].includes(protocol)) {
+      return false;
+    }
+
+    return hostname.endsWith('.vercel.app') && hostname.includes('blood-donaction');
+  } catch {
+    return false;
+  }
+};
+
 const setCorsHeaders = (req, res) => {
   const requestOrigin = req.headers.origin;
   const allowedOrigins = getAllowedOrigins();
 
   if (allowedOrigins === '*') {
     res.setHeader('Access-Control-Allow-Origin', '*');
-  } else if (requestOrigin && allowedOrigins.has(requestOrigin)) {
+  } else if (requestOrigin && (allowedOrigins.has(requestOrigin) || isProjectVercelOrigin(requestOrigin))) {
     res.setHeader('Access-Control-Allow-Origin', requestOrigin);
     res.setHeader('Vary', 'Origin');
   }
@@ -60,8 +59,6 @@ async function handler(req, res) {
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
-
-    await ensureDatabaseConnection();
 
     // Use the bundled handler
     return await baseAppHandler(req, res);

@@ -64,6 +64,19 @@ const buildAllowedOrigins = () => {
 
 const allowedOrigins = buildAllowedOrigins();
 
+const isProjectVercelOrigin = (origin) => {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (!['http:', 'https:'].includes(protocol)) {
+      return false;
+    }
+
+    return hostname.endsWith('.vercel.app') && hostname.includes('blood-donaction');
+  } catch {
+    return false;
+  }
+};
+
 app.use(helmet());
 app.use(
   cors({
@@ -74,6 +87,11 @@ app.use(
       }
 
       if (allowedOrigins === '*') {
+        callback(null, true);
+        return;
+      }
+
+      if (isProjectVercelOrigin(origin)) {
         callback(null, true);
         return;
       }
