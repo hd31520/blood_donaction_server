@@ -1,19 +1,32 @@
-import { app } from '../src/app.js';
-import { connectDatabase } from '../src/config/db.js';
+let appInstance = null;
+let databaseConnectionPromise = null;
 
-let isDatabaseConnected = false;
-
-const ensureDatabaseConnection = async () => {
-  if (isDatabaseConnected) {
-    return;
+const loadApp = async () => {
+  if (appInstance) {
+    return appInstance;
   }
 
-  await connectDatabase();
-  isDatabaseConnected = true;
+  const { app } = await import('../src/app.js');
+  appInstance = app;
+  return appInstance;
+};
+
+const ensureDatabaseConnection = async () => {
+  if (!databaseConnectionPromise) {
+    databaseConnectionPromise = import('../src/config/db.js')
+      .then(({ connectDatabase }) => connectDatabase())
+      .catch((error) => {
+        databaseConnectionPromise = null;
+        throw error;
+      });
+  }
+
+  return databaseConnectionPromise;
 };
 
 export default async function handler(req, res) {
   try {
+    const app = await loadApp();
     await ensureDatabaseConnection();
     return app(req, res);
   } catch (error) {
