@@ -33,7 +33,18 @@ const buildAllowedOrigins = () => {
     'http://127.0.0.1:8080',
   ];
 
-  const normalizedOrigins = new Set([...configuredOrigins, ...defaultDevOrigins]);
+  // Add Vercel deployment origins for both exact and common variations
+  const vercelOrigins = [
+    'https://blood-donaction-clint.vercel.app',
+    'https://blood-donaction-client.vercel.app',
+    'https://blood-donaction.vercel.app',
+  ];
+
+  const normalizedOrigins = new Set([
+    ...configuredOrigins,
+    ...defaultDevOrigins,
+    ...(env.NODE_ENV === 'production' ? vercelOrigins : []),
+  ]);
 
   for (const origin of [...normalizedOrigins]) {
     try {

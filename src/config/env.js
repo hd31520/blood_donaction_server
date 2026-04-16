@@ -1,7 +1,15 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config();
+// Load .env files based on NODE_ENV or environment context
+if (process.env.VERCEL) {
+  // On Vercel, use .env.production if available, but Vercel env vars take precedence
+  dotenv.config({ path: '.env.production' });
+} else if (process.env.NODE_ENV === 'production') {
+  dotenv.config({ path: '.env.production' });
+} else {
+  dotenv.config();
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -33,7 +41,7 @@ const envSchema = z.object({
         }
       });
     }, 'CLIENT_URL must be * or one/more comma-separated http(s) URLs')
-    .default('http://localhost:5173'),
+    .default('http://localhost:5173,https://blood-donaction-clint.vercel.app,https://blood-donaction-client.vercel.app'),
   IMGBB_API_KEY: z.string().optional().default(''),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
   JWT_EXPIRES_IN: z.string().default('7d'),
