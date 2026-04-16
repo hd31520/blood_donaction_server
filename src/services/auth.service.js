@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 
 import { ROLE_LABELS, USER_ROLES } from '../config/access-control.js';
 import { env } from '../config/env.js';
@@ -61,8 +62,25 @@ const sanitizeUser = (userDoc) => {
   };
 };
 
+const ensureDatabaseReady = (operation) => {
+  if (mongoose.connection.readyState !== 1) {
+    console.error('[AUTH][DB_NOT_READY]', {
+      operation,
+      readyState: mongoose.connection.readyState,
+      reason: 'MongoDB connection is not ready before auth query',
+    });
+
+    throw new ApiError(
+      503,
+      'Database is temporarily unavailable. Please retry in a few seconds.',
+    );
+  }
+};
+
 export const authService = {
   register: async (payload) => {
+    ensureDatabaseReady('register');
+
     const normalizedEmail = payload.email.trim().toLowerCase();
     const safeEmail = maskEmail(normalizedEmail);
 
@@ -138,6 +156,8 @@ export const authService = {
   },
 
   login: async ({ email, password }) => {
+    ensureDatabaseReady('login');
+
     const normalizedEmail = email.trim().toLowerCase();
     const safeEmail = maskEmail(normalizedEmail);
 

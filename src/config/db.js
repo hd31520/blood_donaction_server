@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import { env } from './env.js';
 import { logger } from './logger.js';
 
+mongoose.set('bufferCommands', false);
+
 export const connectDatabase = async () => {
   if (mongoose.connection.readyState === 1) {
     logger.info('MongoDB already connected');
