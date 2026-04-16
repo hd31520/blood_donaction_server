@@ -45,6 +45,7 @@ const envSchema = z.object({
   IMGBB_API_KEY: z.string().optional().default(''),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(200),
 });
