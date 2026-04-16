@@ -1,8 +1,21 @@
 // Vercel Serverless Function Entrypoint
-// This file wraps the bundled Express app with CORS and connection handling
+// This file wraps the bundled Express app with CORS and connection handling.
 
-let handlerInstance = null;
 const baseAppHandler = require('./handler.js');
+let databaseConnectionPromise = null;
+
+const ensureDatabaseConnection = async () => {
+  if (!databaseConnectionPromise) {
+    databaseConnectionPromise = import('../src/config/db.js')
+      .then(({ connectDatabase }) => connectDatabase())
+      .catch((error) => {
+        databaseConnectionPromise = null;
+        throw error;
+      });
+  }
+
+  return databaseConnectionPromise;
+};
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://blood-donaction-clint.vercel.app',
@@ -47,6 +60,8 @@ async function handler(req, res) {
     if (req.method === 'OPTIONS') {
       return res.status(204).end();
     }
+
+    await ensureDatabaseConnection();
 
     // Use the bundled handler
     return await baseAppHandler(req, res);

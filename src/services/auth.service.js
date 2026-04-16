@@ -51,7 +51,9 @@ const sanitizeUser = (userDoc) => {
 
 export const authService = {
   register: async (payload) => {
-    const exists = await User.findOne({ email: payload.email });
+    const normalizedEmail = payload.email.trim().toLowerCase();
+
+    const exists = await User.findOne({ email: normalizedEmail });
     if (exists) {
       throw new ApiError(409, 'User with this email already exists');
     }
@@ -69,6 +71,7 @@ export const authService = {
 
     const user = await User.create({
       ...payload,
+      email: normalizedEmail,
       ...locationRefs,
       role: payload.role || USER_ROLES.DONOR,
     });
@@ -95,7 +98,8 @@ export const authService = {
   },
 
   login: async ({ email, password }) => {
-    const user = await User.findOne({ email }).select('+password');
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
       throw new ApiError(401, 'Invalid email or password');
     }
