@@ -85,3 +85,5 @@ app.use('/api/v1', routes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
+
+export default app;
