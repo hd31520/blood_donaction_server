@@ -24,25 +24,34 @@ const resolveObjectId = async (Model, value, fieldName) => {
     return null;
   }
 
-  if (!mongoose.isValidObjectId(value)) {
-    const externalId = toExternalId(value);
-    if (externalId === null) {
-      throw new ApiError(400, `${fieldName} must be a valid ObjectId or numeric externalId`);
-    }
-
-    const entity = await Model.findOne({ externalId }).select('_id').lean();
-    if (!entity?._id) {
-      throw new ApiError(400, `${fieldName} does not exist`);
-    }
-
-    return new mongoose.Types.ObjectId(entity._id);
+  // If it's already a valid ObjectId, use it directly
+  if (mongoose.isValidObjectId(value)) {
+    return new mongoose.Types.ObjectId(value);
   }
 
-  return new mongoose.Types.ObjectId(value);
-};
+  // Try to convert to numeric ID (from public dataset)
+  const externalId = toExternalId(value);
+  if (externalId !== null) {
+    const entity = await Model.findOne({ externalId }).select('_id').lean();
+    if (entity?._id) {
+      return new mongoose.Types.ObjectId(entity._id);
+    }
 
-const normalizeText = (value) => value?.toString().trim() || null;
-
+    // If numeric but not found by externalId, try finding by ObjectId directly
+    // This handles cases where the ID might be provided in ObjectId format
+    if (mongoose.isValidObjectId(String(value))) {
+      const fallbackEntity = await Model.findById(value).select('_id').lean();
+      if (fallbackEntity?._id) {
+        return new mongoose.Types.ObjectId(fallbackEntity._id);
+      const externalId = toExternalId(value);
+      if (externalId !== null) {
+        const entity = await Model.findOne({ externalId }).select('_id').lean();
+        if (entity?._id) {
+          return new mongoose.Types.ObjectId(entity._id);
+        }
+        throw new ApiError(400, `${fieldName} with value "${value}" (externalId: ${externalId}) not found`);
+      }
+      throw new ApiError(400, `${fieldName} must be ObjectId or numeric externalId (got: "${value}")`);
 export const locationService = {
   normalizeAndValidateHierarchy: async ({
     divisionId,
