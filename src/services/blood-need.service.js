@@ -1,5 +1,4 @@
 import { BloodNeed } from '../models/blood-need.model.js';
-import { DonorProfile } from '../models/donor-profile.model.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 

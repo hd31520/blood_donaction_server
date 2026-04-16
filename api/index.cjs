@@ -1,5 +1,8 @@
-let appInstance = null;
-let databaseConnectionPromise = null;
+// Vercel Serverless Function Entrypoint
+// This file wraps the bundled Express app with CORS and connection handling
+
+let handlerInstance = null;
+const baseAppHandler = require('./handler.js');
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://blood-donaction-clint.vercel.app',
@@ -37,45 +40,22 @@ const setCorsHeaders = (req, res) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 };
 
-const loadApp = async () => {
-  if (appInstance) {
-    return appInstance;
-  }
-
-  const { app } = await import('../src/app.js');
-  appInstance = app;
-  return appInstance;
-};
-
-const ensureDatabaseConnection = async () => {
-  if (!databaseConnectionPromise) {
-    databaseConnectionPromise = import('../src/config/db.js')
-      .then(({ connectDatabase }) => connectDatabase())
-      .catch((error) => {
-        databaseConnectionPromise = null;
-        throw error;
-      });
-  }
-
-  return databaseConnectionPromise;
-};
-
 async function handler(req, res) {
-  setCorsHeaders(req, res);
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-
   try {
-    const app = await loadApp();
-    await ensureDatabaseConnection();
-    return app(req, res);
+    setCorsHeaders(req, res);
+
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+
+    // Use the bundled handler
+    return await baseAppHandler(req, res);
   } catch (error) {
-    console.error('Vercel handler startup error:', error);
+    console.error('Handler error:', error);
     return res.status(500).json({
       success: false,
       message: 'Server initialization failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 }

@@ -3,6 +3,9 @@ node_modules/
 dist/
 build/
 coverage/
+api/handler.js
+api/_handler.esm.mjs
+api/*.map
 
 # Environment files
 .env

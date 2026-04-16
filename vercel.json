@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
   "env": {
     "NODE_ENV": "production",
     "CLIENT_URL": "https://blood-donaction-clint.vercel.app,https://blood-donaction-client.vercel.app,http://localhost:5173"

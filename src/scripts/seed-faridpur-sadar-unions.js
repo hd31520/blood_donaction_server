@@ -1,7 +1,5 @@
 import mongoose from 'mongoose';
 import { connectDatabase } from '../config/db.js';
-import { Division } from '../models/division.model.js';
-import { District } from '../models/district.model.js';
 import { Upazila } from '../models/upazila.model.js';
 import { Union } from '../models/union.model.js';
 
@@ -18,8 +16,6 @@ const FARIDPUR_SADAR_UNION_NAMES = [
   'Maj Char',
   'Uttar Channel',
 ];
-
-const FARIDPUR_SADAR_WARDS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 const seedFaridpurSadarUnions = async () => {
   try {
@@ -59,25 +55,8 @@ const seedFaridpurSadarUnions = async () => {
 
     nextExternalId += FARIDPUR_SADAR_UNION_NAMES.length;
 
-    // Seed pouroshavas (wards)
-    const pouroshavaOps = FARIDPUR_SADAR_WARDS.map((wardNumber) => ({
-      insertOne: {
-        document: {
-          name: `Ward ${wardNumber}`,
-          bnName: `ওয়ার্ড ${wardNumber}`,
-          code: `FARIDPUR-SADAR-WARD-${wardNumber}`,
-          divisionId: faridpurSadar.divisionId,
-          districtId: faridpurSadar.districtId,
-          upazilaId: faridpurSadar._id,
-          areaType: 'pouroshava',
-          externalId: nextExternalId,
-        },
-      },
-    }));
-
-    // Only create first pouroshava as a sample (uncomment to create all)
-    // const pouroshavaResults = await Union.bulkWrite(pouroshavaOps, { ordered: false });
-    // console.log(`✓ Seeded ${pouroshavaResults.insertedCount} pouroshavas for Faridpur Sadar`);
+    // Note: Pouroshavas (wards) can be created separately if needed
+    // They would require additional bulkWrite operations similar to unions above
 
     const elapsedTime = Date.now() - startTime;
     console.log(`✓ Seeding completed in ${elapsedTime}ms`);

@@ -43,15 +43,15 @@ const resolveObjectId = async (Model, value, fieldName) => {
       const fallbackEntity = await Model.findById(value).select('_id').lean();
       if (fallbackEntity?._id) {
         return new mongoose.Types.ObjectId(fallbackEntity._id);
-      const externalId = toExternalId(value);
-      if (externalId !== null) {
-        const entity = await Model.findOne({ externalId }).select('_id').lean();
-        if (entity?._id) {
-          return new mongoose.Types.ObjectId(entity._id);
-        }
-        throw new ApiError(400, `${fieldName} with value "${value}" (externalId: ${externalId}) not found`);
       }
-      throw new ApiError(400, `${fieldName} must be ObjectId or numeric externalId (got: "${value}")`);
+    }
+
+    throw new ApiError(400, `${fieldName} with value "${value}" (externalId: ${externalId}) not found`);
+  }
+
+  throw new ApiError(400, `${fieldName} must be ObjectId or numeric externalId (got: "${value}")`);
+};
+
 export const locationService = {
   normalizeAndValidateHierarchy: async ({
     divisionId,
@@ -73,7 +73,7 @@ export const locationService = {
     let resolvedUpazila = null;
     let resolvedUnion = null;
     let normalizedAreaType = areaType || null;
-    const normalizedWardNumber = normalizeText(wardNumber);
+    const normalizedWardNumber = wardNumber ? String(wardNumber).trim() : null;
 
     if (normalizedUnionId) {
       const union = await Union.findById(normalizedUnionId).select(

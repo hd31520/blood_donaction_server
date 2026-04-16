@@ -11,7 +11,8 @@
     "seed:locations": "node src/scripts/seed-locations.js",
     "backfill:upazila-areas": "node src/scripts/backfill-missing-upazila-areas.js",
     "generate:location-data": "node src/scripts/generate-location-dataset.js",
-    "build": "echo \"No build step required for server\"",
+    "build": "node build.cjs",
+    "build:vercel": "npm run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write ."
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "chokidar": "^3.6.0",
+    "esbuild": "^0.20.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "kill-port": "^2.0.1",
