@@ -8,6 +8,18 @@ import { DonorProfile } from '../models/donor-profile.model.js';
 import { UpazilaSettings } from '../models/upazila-settings.model.js';
 import { User } from '../models/user.model.js';
 
+const maskEmail = (email) => {
+  const normalized = String(email || '').trim().toLowerCase();
+  const [localPart, domainPart] = normalized.split('@');
+
+  if (!localPart || !domainPart) {
+    return normalized || 'unknown';
+  }
+
+  const head = localPart.slice(0, 2);
+  return `${head}${'*'.repeat(Math.max(0, localPart.length - 2))}@${domainPart}`;
+};
+
 const signToken = (user) => {
   return jwt.sign(
     {
@@ -52,22 +64,44 @@ const sanitizeUser = (userDoc) => {
 export const authService = {
   register: async (payload) => {
     const normalizedEmail = payload.email.trim().toLowerCase();
+    const safeEmail = maskEmail(normalizedEmail);
 
-    const exists = await User.findOne({ email: normalizedEmail });
-    if (exists) {
-      throw new ApiError(409, 'User with this email already exists');
-    }
-
-    const locationRefs = await locationService.normalizeAndValidateHierarchy({
+    console.info('[AUTH][REGISTER] Incoming request', {
+      email: safeEmail,
+      role: payload.role || USER_ROLES.DONOR,
       divisionId: payload.divisionId,
       districtId: payload.districtId,
       upazilaId: payload.upazilaId,
       areaType: payload.areaType,
-      unionId: payload.unionId,
-      unionName: payload.unionName,
-      wardNumber: payload.wardNumber,
-      role: payload.role || USER_ROLES.DONOR,
+      hasUnionId: Boolean(payload.unionId),
+      hasUnionName: Boolean(payload.unionName),
     });
+
+    const exists = await User.findOne({ email: normalizedEmail });
+    if (exists) {
+      console.warn('[AUTH][REGISTER] Duplicate email', { email: safeEmail });
+      throw new ApiError(409, 'User with this email already exists');
+    }
+
+    let locationRefs;
+    try {
+      locationRefs = await locationService.normalizeAndValidateHierarchy({
+        divisionId: payload.divisionId,
+        districtId: payload.districtId,
+        upazilaId: payload.upazilaId,
+        areaType: payload.areaType,
+        unionId: payload.unionId,
+        unionName: payload.unionName,
+        wardNumber: payload.wardNumber,
+        role: payload.role || USER_ROLES.DONOR,
+      });
+    } catch (error) {
+      console.error('[AUTH][REGISTER] Location normalization failed', {
+        email: safeEmail,
+        reason: error?.message,
+      });
+      throw error;
+    }
 
     const user = await User.create({
       ...payload,
@@ -91,6 +125,12 @@ export const authService = {
 
     const token = signToken(user);
 
+    console.info('[AUTH][REGISTER] Success', {
+      email: safeEmail,
+      userId: user._id?.toString?.() || String(user._id || ''),
+      role: user.role,
+    });
+
     return {
       token,
       user: sanitizeUser(user),
@@ -99,17 +139,32 @@ export const authService = {
 
   login: async ({ email, password }) => {
     const normalizedEmail = email.trim().toLowerCase();
+    const safeEmail = maskEmail(normalizedEmail);
+
+    console.info('[AUTH][LOGIN] Incoming request', { email: safeEmail });
+
     const user = await User.findOne({ email: normalizedEmail }).select('+password');
     if (!user) {
+      console.warn('[AUTH][LOGIN] User not found', { email: safeEmail });
       throw new ApiError(401, 'Invalid email or password');
     }
 
     const passwordMatched = await user.comparePassword(password);
     if (!passwordMatched) {
+      console.warn('[AUTH][LOGIN] Password mismatch', {
+        email: safeEmail,
+        userId: user._id?.toString?.() || String(user._id || ''),
+      });
       throw new ApiError(401, 'Invalid email or password');
     }
 
     const token = signToken(user);
+
+    console.info('[AUTH][LOGIN] Success', {
+      email: safeEmail,
+      userId: user._id?.toString?.() || String(user._id || ''),
+      role: user.role,
+    });
 
     return {
       token,
