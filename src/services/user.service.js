@@ -1,6 +1,7 @@
 import { ApiError } from '../shared/utils/api-error.js';
 import { ROLE_LABELS, USER_ROLES, buildScopeFilter, canManageRole } from '../config/access-control.js';
 import { locationService } from './location.service.js';
+import { DonorProfile } from '../models/donor-profile.model.js';
 import { User } from '../models/user.model.js';
 
 const sanitizeUser = (userDoc) => {
@@ -10,9 +11,13 @@ const sanitizeUser = (userDoc) => {
     email: userDoc.email,
     role: userDoc.role,
     roleLabel: ROLE_LABELS[userDoc.role],
-    districtId: userDoc.districtId,
-    upazilaId: userDoc.upazilaId,
-    unionId: userDoc.unionId,
+    profileImageUrl: userDoc.profileImageUrl || null,
+    locationNames: {
+      division: userDoc.locationNames?.division || null,
+      district: userDoc.locationNames?.district || null,
+      upazila: userDoc.locationNames?.upazila || null,
+      union: userDoc.locationNames?.union || null,
+    },
     bloodGroup: userDoc.bloodGroup,
     location: userDoc.location,
     phone: userDoc.phone,
@@ -78,6 +83,7 @@ export const userService = {
     }
 
     const normalizedLocation = await locationService.normalizeAndValidateHierarchy({
+      divisionId: payload.divisionId,
       districtId: payload.districtId,
       upazilaId: payload.upazilaId,
       unionId: payload.unionId,
@@ -101,6 +107,30 @@ export const userService = {
       role: targetRole,
     });
 
+    if (user.role === USER_ROLES.DONOR) {
+      await DonorProfile.findOneAndUpdate(
+        { userId: user._id },
+        {
+          $setOnInsert: {
+            bloodGroup: user.bloodGroup,
+            availabilityStatus: 'available',
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    }
+
     return sanitizeUser(user);
+  },
+
+  createUsersByAdminBulk: async (actor, users) => {
+    const created = [];
+
+    for (const payload of users) {
+      const user = await userService.createUserByAdmin(actor, payload);
+      created.push(user);
+    }
+
+    return created;
   },
 };

@@ -56,4 +56,7 @@ const donorProfileSchema = new mongoose.Schema(
   },
 );
 
+// Supports fast profile filtering/sorting in donor search flows.
+donorProfileSchema.index({ availabilityStatus: 1, bloodGroup: 1, updatedAt: -1 });
+
 export const DonorProfile = mongoose.model('DonorProfile', donorProfileSchema);

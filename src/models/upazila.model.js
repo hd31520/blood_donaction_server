@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 
 const upazilaSchema = new mongoose.Schema(
   {
+    divisionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Division',
+      required: true,
+      index: true,
+    },
     districtId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'District',
@@ -22,8 +28,15 @@ const upazilaSchema = new mongoose.Schema(
     code: {
       type: String,
       trim: true,
+      unique: true,
       sparse: true,
       maxlength: 20,
+    },
+    externalId: {
+      type: Number,
+      required: true,
+      unique: true,
+      index: true,
     },
   },
   {

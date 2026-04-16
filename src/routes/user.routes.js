@@ -1,6 +1,11 @@
 import { Router } from 'express';
 
-import { createUserByAdmin, getUserById, getUsers } from '../controllers/user.controller.js';
+import {
+	createUserByAdmin,
+	createUsersByAdminBulk,
+	getUserById,
+	getUsers,
+} from '../controllers/user.controller.js';
 import {
 	attachCurrentUser,
 	authenticate,
@@ -19,6 +24,13 @@ userRouter.post(
 	authorizeMinimumRole(USER_ROLES.UNION_LEADER),
 	authorizePermission('user:create:union'),
 	createUserByAdmin,
+);
+
+userRouter.post(
+	'/bulk',
+	authorizeMinimumRole(USER_ROLES.UNION_LEADER),
+	authorizePermission('user:create:union'),
+	createUsersByAdminBulk,
 );
 
 userRouter.get(

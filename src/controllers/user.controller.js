@@ -15,9 +15,11 @@ const createUserByAdminSchema = z.object({
       USER_ROLES.UPAZILA_ADMIN,
       USER_ROLES.UNION_LEADER,
       USER_ROLES.DONOR,
+      USER_ROLES.FINDER,
     ])
     .optional(),
   bloodGroup: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
+  divisionId: z.string().optional(),
   districtId: z.string().optional(),
   upazilaId: z.string().optional(),
   unionId: z.string().optional(),
@@ -51,5 +53,16 @@ export const createUserByAdmin = asyncHandler(async (req, res) => {
     success: true,
     message: 'User created successfully',
     data: user,
+  });
+});
+
+export const createUsersByAdminBulk = asyncHandler(async (req, res) => {
+  const payload = z.array(createUserByAdminSchema).min(1).max(100).parse(req.body?.users || []);
+  const users = await userService.createUsersByAdminBulk(req.currentUser, payload);
+
+  res.status(StatusCodes.CREATED).json({
+    success: true,
+    message: 'Users created successfully',
+    data: users,
   });
 });

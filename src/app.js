@@ -15,10 +15,60 @@ import { routes } from './routes.js';
 
 export const app = express();
 
+const buildAllowedOrigins = () => {
+  if (env.CLIENT_URL === '*') {
+    return '*';
+  }
+
+  const configuredOrigins = env.CLIENT_URL.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const defaultDevOrigins = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+  ];
+
+  const normalizedOrigins = new Set([...configuredOrigins, ...defaultDevOrigins]);
+
+  for (const origin of [...normalizedOrigins]) {
+    try {
+      const parsed = new URL(origin);
+      const swapHost = parsed.hostname === 'localhost' ? '127.0.0.1' : parsed.hostname === '127.0.0.1' ? 'localhost' : null;
+
+      if (swapHost) {
+        normalizedOrigins.add(`${parsed.protocol}//${swapHost}${parsed.port ? `:${parsed.port}` : ''}`);
+      }
+    } catch {
+      // Ignore invalid custom origins so a bad value does not crash startup.
+    }
+  }
+
+  return normalizedOrigins;
+};
+
+const allowedOrigins = buildAllowedOrigins();
+
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins === '*') {
+        callback(null, true);
+        return;
+      }
+
+      callback(null, allowedOrigins.has(origin));
+    },
     credentials: true,
   }),
 );

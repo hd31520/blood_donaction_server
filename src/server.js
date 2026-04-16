@@ -10,16 +10,21 @@ import { logger } from './config/logger.js';
 const server = http.createServer(app);
 
 const startServer = async () => {
+  let databaseConnected = false;
+
   try {
     await connectDatabase();
-
-    server.listen(env.PORT, () => {
-      logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
-    });
+    databaseConnected = true;
   } catch (error) {
-    logger.error('Failed to start server', error);
-    process.exit(1);
+    logger.error('MongoDB connection failed. Starting in degraded mode', error);
   }
+
+  server.listen(env.PORT, () => {
+    logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+    if (!databaseConnected) {
+      logger.warn('Running without MongoDB connection: DB-dependent endpoints may fail');
+    }
+  });
 };
 
 const shutdown = async (signal) => {

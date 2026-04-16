@@ -18,6 +18,7 @@ const donationHistorySchema = z.object({
 
 const searchDonorSchema = z.object({
   bloodGroup: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).optional(),
+  divisionId: z.string().optional(),
   districtId: z.string().optional(),
   upazilaId: z.string().optional(),
   unionId: z.string().optional(),
@@ -86,5 +87,25 @@ export const searchDonors = asyncHandler(async (req, res) => {
     success: true,
     data: result.data,
     meta: result.pagination,
+  });
+});
+
+export const searchPublicDonors = asyncHandler(async (req, res) => {
+  const filters = searchDonorSchema.parse(req.query);
+  const result = await donorProfileService.searchPublicDonors(filters);
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: result.data,
+    meta: result.pagination,
+  });
+});
+
+export const getPublicDonorProfileByUserId = asyncHandler(async (req, res) => {
+  const profile = await donorProfileService.getPublicDonorProfileByUserId(req.params.userId);
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: profile,
   });
 });
