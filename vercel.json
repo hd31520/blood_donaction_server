@@ -5,14 +5,14 @@
     "CLIENT_URL": "https://blood-donaction-clint.vercel.app,https://blood-donaction-client.vercel.app,http://localhost:5173"
   },
   "functions": {
-    "api/index.js": {
+    "api/index.cjs": {
       "maxDuration": 30
     }
   },
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "dest": "/api/index.cjs"
     }
   ]
 }

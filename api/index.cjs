@@ -60,7 +60,7 @@ const ensureDatabaseConnection = async () => {
   return databaseConnectionPromise;
 };
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   setCorsHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
@@ -79,3 +79,5 @@ export default async function handler(req, res) {
     });
   }
 }
+
+module.exports = handler;
