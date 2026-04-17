@@ -6,6 +6,9 @@ import { District } from '../models/district.model.js';
 import { Union } from '../models/union.model.js';
 import { Upazila } from '../models/upazila.model.js';
 import { ApiError } from '../shared/utils/api-error.js';
+import { locationDatasetService } from './location-dataset.service.js';
+
+const toCode = (prefix, id) => `${prefix}-${String(id).padStart(4, '0')}`;
 
 const toExternalId = (value) => {
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -14,6 +17,172 @@ const toExternalId = (value) => {
 
   if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
     return Number.parseInt(value.trim(), 10);
+  }
+
+  return null;
+};
+
+const upsertEntityByExternalId = async ({ Model, externalId, payload }) => {
+  try {
+    return await Model.findOneAndUpdate(
+      { externalId },
+      { $setOnInsert: payload },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      },
+    )
+      .select('_id')
+      .lean();
+  } catch (error) {
+    if (error?.code === 11000) {
+      return Model.findOne({ externalId }).select('_id').lean();
+    }
+
+    throw error;
+  }
+};
+
+const ensureDivisionByExternalId = async (externalId) => {
+  const existing = await Division.findOne({ externalId }).select('_id').lean();
+  if (existing?._id) {
+    return existing;
+  }
+
+  const division = locationDatasetService.findDivision(externalId);
+  if (!division) {
+    return null;
+  }
+
+  return upsertEntityByExternalId({
+    Model: Division,
+    externalId,
+    payload: {
+      name: division.name,
+      bnName: division.bnName || null,
+      code: division.code || toCode('DIV', externalId),
+      externalId,
+    },
+  });
+};
+
+const ensureDistrictByExternalId = async (externalId) => {
+  const existing = await District.findOne({ externalId }).select('_id').lean();
+  if (existing?._id) {
+    return existing;
+  }
+
+  const district = locationDatasetService.findDistrict(externalId);
+  if (!district) {
+    return null;
+  }
+
+  const division = await ensureDivisionByExternalId(district.divisionId);
+  if (!division?._id) {
+    return null;
+  }
+
+  return upsertEntityByExternalId({
+    Model: District,
+    externalId,
+    payload: {
+      divisionId: division._id,
+      name: district.name,
+      bnName: district.bnName || null,
+      code: district.code || toCode('DIS', externalId),
+      externalId,
+    },
+  });
+};
+
+const ensureUpazilaByExternalId = async (externalId) => {
+  const existing = await Upazila.findOne({ externalId }).select('_id').lean();
+  if (existing?._id) {
+    return existing;
+  }
+
+  const upazila = locationDatasetService.findUpazila(externalId);
+  if (!upazila) {
+    return null;
+  }
+
+  const district = await ensureDistrictByExternalId(upazila.districtId);
+  if (!district?._id) {
+    return null;
+  }
+
+  const districtDoc = await District.findById(district._id).select('divisionId').lean();
+  if (!districtDoc?.divisionId) {
+    return null;
+  }
+
+  return upsertEntityByExternalId({
+    Model: Upazila,
+    externalId,
+    payload: {
+      divisionId: districtDoc.divisionId,
+      districtId: district._id,
+      name: upazila.name,
+      bnName: upazila.bnName || null,
+      code: upazila.code || toCode('UPAZILA', externalId),
+      externalId,
+    },
+  });
+};
+
+const ensureUnionByExternalId = async (externalId) => {
+  const existing = await Union.findOne({ externalId }).select('_id').lean();
+  if (existing?._id) {
+    return existing;
+  }
+
+  const union = locationDatasetService.findUnion(externalId);
+  if (!union) {
+    return null;
+  }
+
+  const upazila = await ensureUpazilaByExternalId(union.upazilaId);
+  if (!upazila?._id) {
+    return null;
+  }
+
+  const upazilaDoc = await Upazila.findById(upazila._id).select('divisionId districtId').lean();
+  if (!upazilaDoc?.divisionId || !upazilaDoc?.districtId) {
+    return null;
+  }
+
+  return upsertEntityByExternalId({
+    Model: Union,
+    externalId,
+    payload: {
+      divisionId: upazilaDoc.divisionId,
+      districtId: upazilaDoc.districtId,
+      upazilaId: upazila._id,
+      areaType: union.areaType || 'union',
+      name: union.name,
+      bnName: union.bnName || null,
+      code: union.code || toCode('UNION', externalId),
+      externalId,
+    },
+  });
+};
+
+const ensureEntityFromDataset = async (Model, externalId) => {
+  if (Model === Division) {
+    return ensureDivisionByExternalId(externalId);
+  }
+
+  if (Model === District) {
+    return ensureDistrictByExternalId(externalId);
+  }
+
+  if (Model === Upazila) {
+    return ensureUpazilaByExternalId(externalId);
+  }
+
+  if (Model === Union) {
+    return ensureUnionByExternalId(externalId);
   }
 
   return null;
@@ -35,6 +204,11 @@ const resolveObjectId = async (Model, value, fieldName) => {
     const entity = await Model.findOne({ externalId }).select('_id').lean();
     if (entity?._id) {
       return new mongoose.Types.ObjectId(entity._id);
+    }
+
+    const hydratedEntity = await ensureEntityFromDataset(Model, externalId);
+    if (hydratedEntity?._id) {
+      return new mongoose.Types.ObjectId(hydratedEntity._id);
     }
 
     // If numeric but not found by externalId, try finding by ObjectId directly
