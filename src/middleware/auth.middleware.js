@@ -7,6 +7,7 @@ import {
   hasPermission,
   isInManagedScope,
 } from '../config/access-control.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { env } from '../config/env.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../shared/utils/api-error.js';
@@ -83,7 +84,8 @@ export const authorizeMinimumRole = (minimumRole) => {
 export const attachCurrentUser = (req, res, next) => {
   void res;
 
-  User.findById(req.user.sub)
+  ensureDatabaseConnection('auth:attachCurrentUser')
+    .then(() => User.findById(req.user.sub))
     .then((currentUser) => {
       if (!currentUser) {
         return next(new ApiError(401, 'Authenticated user no longer exists'));
@@ -99,7 +101,8 @@ export const authorizeTargetUserAccess = (paramName = 'userId') => {
   return (req, res, next) => {
     void res;
 
-    User.findById(req.params[paramName])
+    ensureDatabaseConnection('auth:authorizeTargetUserAccess')
+      .then(() => User.findById(req.params[paramName]))
       .then((targetUser) => {
         if (!targetUser) {
           return next(new ApiError(404, 'Target user not found'));

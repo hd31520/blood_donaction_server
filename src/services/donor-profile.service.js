@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import { USER_ROLES, buildScopeFilter, isInManagedScope } from '../config/access-control.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
 import { User } from '../models/user.model.js';
 import { buildCacheKey, getOrSetCached } from '../shared/utils/query-cache.js';
@@ -236,6 +237,8 @@ export const donorProfileService = {
   },
 
   searchDonors: async (currentUser, filters) => {
+    await ensureDatabaseConnection('donorProfile:searchDonors');
+
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit) || 20));
 
@@ -319,6 +322,8 @@ export const donorProfileService = {
   },
 
   searchPublicDonors: async (filters) => {
+    await ensureDatabaseConnection('donorProfile:searchPublicDonors');
+
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit) || 20));
 
@@ -390,6 +395,8 @@ export const donorProfileService = {
   },
 
   getPublicDonorProfileByUserId: async (userId) => {
+    await ensureDatabaseConnection('donorProfile:getPublicDonorProfileByUserId');
+
     const user = await User.findById(userId)
       .select('_id name location locationNames profileImageUrl bloodGroup createdAt updatedAt role')
       .lean();

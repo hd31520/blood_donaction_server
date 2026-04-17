@@ -1,4 +1,5 @@
 import { buildScopeFilter, USER_ROLES } from '../config/access-control.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
 import { User } from '../models/user.model.js';
 import { buildCacheKey, getOrSetCached } from '../shared/utils/query-cache.js';
@@ -58,6 +59,8 @@ const buildCsvReport = (report) => {
 
 export const reportService = {
   getMonthlyDonorReport: async (currentUser, { year, month }) => {
+    await ensureDatabaseConnection('report:getMonthlyDonorReport');
+
     if (!Number.isInteger(year) || year < 2000 || year > 2100) {
       throw new ApiError(400, 'year must be a valid year between 2000 and 2100');
     }

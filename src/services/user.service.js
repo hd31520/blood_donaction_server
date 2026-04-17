@@ -1,4 +1,5 @@
 import { ApiError } from '../shared/utils/api-error.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { ROLE_LABELS, USER_ROLES, buildScopeFilter, canManageRole } from '../config/access-control.js';
 import { locationService } from './location.service.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
@@ -53,11 +54,15 @@ const assertNewUserScope = (actor, payload) => {
 
 export const userService = {
   getAllUsers: async (actor) => {
+    await ensureDatabaseConnection('users:getAllUsers');
+
     const users = await User.find(buildScopeFilter(actor)).sort({ createdAt: -1 }).limit(200).lean();
     return users.map(sanitizeUser);
   },
 
   getUserById: async (userId, actor) => {
+    await ensureDatabaseConnection('users:getUserById');
+
     const user = await User.findById(userId).lean();
     if (!user) {
       throw new ApiError(404, 'User not found');
@@ -76,6 +81,8 @@ export const userService = {
   },
 
   createUserByAdmin: async (actor, payload) => {
+    await ensureDatabaseConnection('users:createUserByAdmin');
+
     const targetRole = payload.role || USER_ROLES.DONOR;
 
     if (!canManageRole(actor.role, targetRole)) {
@@ -135,6 +142,8 @@ export const userService = {
   },
 
   updateUserRoleByAdmin: async (actor, userId, payload) => {
+    await ensureDatabaseConnection('users:updateUserRoleByAdmin');
+
     if (!canManageRole(actor.role, payload.role)) {
       throw new ApiError(403, 'You cannot assign an equal or higher role');
     }

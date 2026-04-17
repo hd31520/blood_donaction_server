@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 import { buildScopeFilter } from '../config/access-control.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { Notification, NOTIFICATION_TYPES } from '../models/notification.model.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../shared/utils/api-error.js';
@@ -21,6 +22,8 @@ const sanitizeNotification = (item) => {
 
 export const notificationService = {
   getMyNotifications: async (currentUser, query) => {
+    await ensureDatabaseConnection('notification:getMyNotifications');
+
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
 
@@ -53,6 +56,8 @@ export const notificationService = {
   },
 
   markAsRead: async (currentUser, notificationId) => {
+    await ensureDatabaseConnection('notification:markAsRead');
+
     if (!mongoose.isValidObjectId(notificationId)) {
       throw new ApiError(400, 'Invalid notification id');
     }
@@ -76,6 +81,8 @@ export const notificationService = {
   },
 
   markAllAsRead: async (currentUser) => {
+    await ensureDatabaseConnection('notification:markAllAsRead');
+
     const updateResult = await Notification.updateMany(
       { recipientUserId: currentUser._id, isRead: false },
       {
@@ -92,6 +99,8 @@ export const notificationService = {
   },
 
   createNotification: async (currentUser, payload) => {
+    await ensureDatabaseConnection('notification:createNotification');
+
     const scopeFilter = buildScopeFilter(currentUser);
     const targetUser = await User.findOne({ _id: payload.recipientUserId, ...scopeFilter });
 

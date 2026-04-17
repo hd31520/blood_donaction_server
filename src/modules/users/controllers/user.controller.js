@@ -1,6 +1,7 @@
 import { StatusCodes } from 'http-status-codes';
 import { z } from 'zod';
 
+import { ensureDatabaseConnection } from '../../../config/db.js';
 import { ApiError } from '../../../shared/utils/api-error.js';
 import { asyncHandler } from '../../../shared/utils/async-handler.js';
 import { User } from '../models/user.model.js';
@@ -14,6 +15,8 @@ const createUserSchema = z.object({
 });
 
 export const createUser = asyncHandler(async (req, res) => {
+  await ensureDatabaseConnection('modulesUsers:createUser');
+
   const payload = createUserSchema.parse(req.body);
 
   const existing = await User.findOne({ email: payload.email });
@@ -32,6 +35,8 @@ export const createUser = asyncHandler(async (req, res) => {
 
 export const getUsers = asyncHandler(async (req, res) => {
   void req;
+  await ensureDatabaseConnection('modulesUsers:getUsers');
+
   const users = await User.find().sort({ createdAt: -1 }).limit(100);
 
   res.status(StatusCodes.OK).json({
