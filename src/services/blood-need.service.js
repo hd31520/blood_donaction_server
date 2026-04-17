@@ -1,6 +1,36 @@
 import { BloodNeed } from '../models/blood-need.model.js';
+import { DonorProfile } from '../models/donor-profile.model.js';
+import { User } from '../models/user.model.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const DONATION_COOLDOWN_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const toStartOfDay = (value) => {
+  const date = new Date(value);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const getDonationEligibility = (lastDonationDate) => {
+  if (!lastDonationDate) {
+    return {
+      isEligibleForDonation: true,
+      nextEligibleDonationDate: null,
+      daysUntilEligible: 0,
+    };
+  }
+
+  const lastDate = toStartOfDay(lastDonationDate);
+  const nextEligible = new Date(lastDate.getTime() + DONATION_COOLDOWN_DAYS * DAY_MS);
+  const today = toStartOfDay(new Date());
+  const daysUntilEligible = Math.max(0, Math.ceil((nextEligible.getTime() - today.getTime()) / DAY_MS));
+
+  return {
+    isEligibleForDonation: daysUntilEligible <= 0,
+    nextEligibleDonationDate: nextEligible,
+    daysUntilEligible,
+  };
+};
 
 const toBoolean = (value) => {
   if (typeof value === 'boolean') {
@@ -207,6 +237,22 @@ export const bloodNeedService = {
     const bloodNeed = await BloodNeed.findById(bloodNeedId);
     if (!bloodNeed) {
       throw new Error('Blood need request not found');
+    }
+
+    const donorUser = await User.findById(donorUserId).select('role');
+    if (!donorUser) {
+      throw new Error('Donor user not found');
+    }
+
+    if (donorUser.role === 'donor') {
+      const donorProfile = await DonorProfile.findOne({ userId: donorUserId }).select('lastDonationDate');
+      const eligibility = getDonationEligibility(donorProfile?.lastDonationDate || null);
+
+      if (!eligibility.isEligibleForDonation) {
+        throw new Error(
+          `Donor is not eligible yet. Next eligible date: ${eligibility.nextEligibleDonationDate.toISOString().slice(0, 10)}`,
+        );
+      }
     }
 
     if (!bloodNeed.donors.includes(donorUserId)) {

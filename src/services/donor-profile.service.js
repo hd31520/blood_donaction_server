@@ -8,6 +8,46 @@ import { buildCacheKey, getOrSetCached } from '../shared/utils/query-cache.js';
 import { ApiError } from '../shared/utils/api-error.js';
 
 const DONOR_SEARCH_CACHE_TTL_MS = 60 * 1000;
+const DONATION_COOLDOWN_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const toStartOfDay = (value) => {
+  const date = new Date(value);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const getDonationEligibility = (lastDonationDate) => {
+  if (!lastDonationDate) {
+    return {
+      isEligibleForDonation: true,
+      nextEligibleDonationDate: null,
+      daysUntilEligible: 0,
+    };
+  }
+
+  const lastDate = toStartOfDay(lastDonationDate);
+  const nextEligible = new Date(lastDate.getTime() + DONATION_COOLDOWN_DAYS * DAY_MS);
+  const today = toStartOfDay(new Date());
+  const daysUntilEligible = Math.max(0, Math.ceil((nextEligible.getTime() - today.getTime()) / DAY_MS));
+
+  return {
+    isEligibleForDonation: daysUntilEligible <= 0,
+    nextEligibleDonationDate: nextEligible,
+    daysUntilEligible,
+  };
+};
+
+const assertNotFutureDonationDate = (value) => {
+  if (!value) {
+    return;
+  }
+
+  const input = toStartOfDay(value);
+  const today = toStartOfDay(new Date());
+  if (input.getTime() > today.getTime()) {
+    throw new ApiError(400, 'Last donation date cannot be in the future');
+  }
+};
 
 const assertDonorRole = (user) => {
   if (user.role !== USER_ROLES.DONOR) {
@@ -16,6 +56,8 @@ const assertDonorRole = (user) => {
 };
 
 const sanitizeDonorProfile = (profile) => {
+  const eligibility = getDonationEligibility(profile.lastDonationDate);
+
   return {
     id: profile._id,
     userId: profile.userId,
@@ -26,6 +68,9 @@ const sanitizeDonorProfile = (profile) => {
     allowDonorChat: profile.allowDonorChat !== false,
     allowPatientChat: profile.allowPatientChat !== false,
     donationHistory: profile.donationHistory,
+    isEligibleForDonation: eligibility.isEligibleForDonation,
+    nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
+    daysUntilEligible: eligibility.daysUntilEligible,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };
@@ -35,6 +80,8 @@ const buildPublicDonorProfile = (userDoc, profileDoc) => {
   if (!userDoc) {
     return null;
   }
+
+  const eligibility = getDonationEligibility(profileDoc?.lastDonationDate || null);
 
   return {
     id: profileDoc?._id || userDoc._id,
@@ -63,6 +110,9 @@ const buildPublicDonorProfile = (userDoc, profileDoc) => {
       location: entry.location || null,
       notes: entry.notes || null,
     })),
+    isEligibleForDonation: eligibility.isEligibleForDonation,
+    nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
+    daysUntilEligible: eligibility.daysUntilEligible,
     createdAt: profileDoc?.createdAt || userDoc.createdAt || null,
     updatedAt: profileDoc?.updatedAt || userDoc.updatedAt || null,
   };
@@ -128,10 +178,22 @@ export const donorProfileService = {
   upsertMyProfile: async (currentUser, payload) => {
     assertDonorRole(currentUser);
 
+    assertNotFutureDonationDate(payload.lastDonationDate);
+    const eligibility = getDonationEligibility(payload.lastDonationDate || null);
+
+    if (!eligibility.isEligibleForDonation && payload.availabilityStatus === 'available') {
+      throw new ApiError(
+        400,
+        `You can be marked available again after ${eligibility.nextEligibleDonationDate.toISOString().slice(0, 10)} (90-day rule)`,
+      );
+    }
+
     const profileUpdate = {
       bloodGroup: payload.bloodGroup,
       lastDonationDate: payload.lastDonationDate || null,
-      availabilityStatus: payload.availabilityStatus,
+      availabilityStatus: eligibility.isEligibleForDonation
+        ? payload.availabilityStatus
+        : 'temporarily_unavailable',
     };
 
     if (typeof payload.isPhoneVisible === 'boolean') {
@@ -174,13 +236,14 @@ export const donorProfileService = {
 
   addDonationHistoryRecord: async (currentUser, payload) => {
     assertDonorRole(currentUser);
+    assertNotFutureDonationDate(payload.donationDate);
 
     const profile = await DonorProfile.findOneAndUpdate(
       { userId: currentUser._id },
       {
         $setOnInsert: {
           bloodGroup: currentUser.bloodGroup,
-          availabilityStatus: 'available',
+          availabilityStatus: 'temporarily_unavailable',
         },
         $push: {
           donationHistory: {
@@ -191,6 +254,7 @@ export const donorProfileService = {
         },
         $set: {
           lastDonationDate: payload.donationDate,
+          availabilityStatus: 'temporarily_unavailable',
         },
       },
       {
