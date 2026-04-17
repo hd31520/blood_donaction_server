@@ -124,6 +124,7 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
   const data = userDocs
     .map((userDoc) => {
       const profile = profileMap.get(String(userDoc._id));
+      const eligibility = getDonationEligibility(profile?.lastDonationDate || null);
 
       return {
         ...(profile ? sanitizeDonorProfile(profile) : {
@@ -136,9 +137,15 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
           allowDonorChat: true,
           allowPatientChat: true,
           donationHistory: [],
+          isEligibleForDonation: true,
+          nextEligibleDonationDate: null,
+          daysUntilEligible: 0,
           createdAt: userDoc.createdAt || null,
           updatedAt: userDoc.updatedAt || null,
         }),
+        isEligibleForDonation: eligibility.isEligibleForDonation,
+        nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
+        daysUntilEligible: eligibility.daysUntilEligible,
         donor: {
           name: userDoc.name,
           phone: profile?.isPhoneVisible === false ? null : userDoc.phone,
