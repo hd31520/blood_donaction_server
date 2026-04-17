@@ -67,6 +67,7 @@ const resolveEntityObjectId = async (Model, value, fieldName) => {
 };
 
 const projection = '_id name bnName code divisionId districtId upazilaId areaType externalId';
+const EXPECTED_DIVISION_COUNT = 8;
 
 const mapLocation = (doc, extra = {}) => ({
   id: doc._id?.toString?.() || String(doc._id),
@@ -297,8 +298,15 @@ export const locationQueryService = {
         .sort({ externalId: 1 })
         .lean();
 
-      if (divisions.length > 0) {
+      if (divisions.length >= EXPECTED_DIVISION_COUNT) {
         return divisions.map((division) => mapLocation(division));
+      }
+
+      if (divisions.length > 0) {
+        logger.warn('Division collection appears incomplete. Falling back to dataset', {
+          expectedCount: EXPECTED_DIVISION_COUNT,
+          actualCount: divisions.length,
+        });
       }
     } catch (error) {
       logger.warn('Primary divisions query failed. Falling back to dataset', {
