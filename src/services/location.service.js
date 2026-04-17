@@ -337,7 +337,12 @@ export const locationService = {
       throw new ApiError(400, 'districtId and upazilaId are required for Upazila Admin');
     }
 
-    if (role === USER_ROLES.UNION_LEADER || role === USER_ROLES.DONOR || role === USER_ROLES.FINDER) {
+    if (
+      role === USER_ROLES.UNION_LEADER ||
+      role === USER_ROLES.WARD_ADMIN ||
+      role === USER_ROLES.DONOR ||
+      role === USER_ROLES.FINDER
+    ) {
       if (!normalizedDivisionId || !normalizedDistrictId || !normalizedUpazilaId) {
         throw new ApiError(
           400,

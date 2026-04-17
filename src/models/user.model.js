@@ -152,6 +152,7 @@ userSchema.pre('validate', function enforceLocationHierarchy(next) {
     if (
       this.role === USER_ROLES.UPAZILA_ADMIN ||
       this.role === USER_ROLES.UNION_LEADER ||
+      this.role === USER_ROLES.WARD_ADMIN ||
       this.role === USER_ROLES.DONOR ||
       this.role === USER_ROLES.FINDER
     ) {
@@ -160,7 +161,12 @@ userSchema.pre('validate', function enforceLocationHierarchy(next) {
     }
   }
 
-    if (this.role === USER_ROLES.UNION_LEADER || this.role === USER_ROLES.DONOR || this.role === USER_ROLES.FINDER) {
+    if (
+      this.role === USER_ROLES.UNION_LEADER ||
+      this.role === USER_ROLES.WARD_ADMIN ||
+      this.role === USER_ROLES.DONOR ||
+      this.role === USER_ROLES.FINDER
+    ) {
     if (!this.areaType) {
       return next(new Error('areaType is required for this role'));
     }

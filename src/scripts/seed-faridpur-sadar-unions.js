@@ -3,6 +3,8 @@ import { connectDatabase } from '../config/db.js';
 import { Upazila } from '../models/upazila.model.js';
 import { Union } from '../models/union.model.js';
 
+/* eslint-disable no-console */
+
 const FARIDPUR_SADAR_UNION_NAMES = [
   'Aliabad',
   'Ambikapur',

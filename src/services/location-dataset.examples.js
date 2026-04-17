@@ -3,6 +3,8 @@
  * This file demonstrates practical applications
  */
 
+/* eslint-disable no-console */
+
 import { locationDatasetService } from '../services/location-dataset.service.js';
 
 // ============================================================================

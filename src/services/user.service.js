@@ -43,12 +43,12 @@ const assertNewUserScope = (actor, payload) => {
   }
 
   if (
-    actor.role === USER_ROLES.UNION_LEADER &&
+    (actor.role === USER_ROLES.UNION_LEADER || actor.role === USER_ROLES.WARD_ADMIN) &&
     (String(payload.districtId) !== String(actor.districtId) ||
       String(payload.upazilaId) !== String(actor.upazilaId) ||
       String(payload.unionId) !== String(actor.unionId))
   ) {
-    throw new ApiError(403, 'Union Leader can only manage their own union');
+    throw new ApiError(403, 'Local admin can only manage their own union or ward scope');
   }
 };
 

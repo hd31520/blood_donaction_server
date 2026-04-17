@@ -3,6 +3,7 @@ export const USER_ROLES = {
   DISTRICT_ADMIN: 'district_admin',
   UPAZILA_ADMIN: 'upazila_admin',
   UNION_LEADER: 'union_leader',
+  WARD_ADMIN: 'ward_admin',
   DONOR: 'donor',
   FINDER: 'finder',
 };
@@ -12,6 +13,7 @@ export const ROLE_LABELS = {
   [USER_ROLES.DISTRICT_ADMIN]: 'District Admin',
   [USER_ROLES.UPAZILA_ADMIN]: 'Upazila Admin',
   [USER_ROLES.UNION_LEADER]: 'Union Leader',
+  [USER_ROLES.WARD_ADMIN]: 'Ward Admin',
   [USER_ROLES.DONOR]: 'Donor',
   [USER_ROLES.FINDER]: 'Finder',
 };
@@ -20,6 +22,7 @@ export const ROLE_LEVEL = {
   [USER_ROLES.DONOR]: 1,
   [USER_ROLES.FINDER]: 1,
   [USER_ROLES.UNION_LEADER]: 2,
+  [USER_ROLES.WARD_ADMIN]: 2,
   [USER_ROLES.UPAZILA_ADMIN]: 3,
   [USER_ROLES.DISTRICT_ADMIN]: 4,
   [USER_ROLES.SUPER_ADMIN]: 5,
@@ -74,6 +77,21 @@ export const ROLE_PERMISSIONS = {
     'notification:create:upazila',
   ],
   [USER_ROLES.UNION_LEADER]: [
+    'user:create:union',
+    'user:read:union',
+    'user:update:union',
+    'donor:read:union',
+    'donor:history:union',
+    'blood-need:create',
+    'blood-need:read',
+    'blood-need:update:self',
+    'blood-need:donate',
+    'blood-need:cancel:self',
+    'report:read:union',
+    'notification:read:union',
+    'notification:create:union',
+  ],
+  [USER_ROLES.WARD_ADMIN]: [
     'user:create:union',
     'user:read:union',
     'user:update:union',
@@ -156,6 +174,7 @@ export const buildScopeFilter = (user) => {
     case USER_ROLES.UPAZILA_ADMIN:
       return { districtId: user.districtId, upazilaId: user.upazilaId };
     case USER_ROLES.UNION_LEADER:
+    case USER_ROLES.WARD_ADMIN:
       return { districtId: user.districtId, upazilaId: user.upazilaId, unionId: user.unionId };
     default:
       return { _id: user._id };
@@ -178,7 +197,7 @@ export const isInManagedScope = (actor, target) => {
     );
   }
 
-  if (actor.role === USER_ROLES.UNION_LEADER) {
+  if (actor.role === USER_ROLES.UNION_LEADER || actor.role === USER_ROLES.WARD_ADMIN) {
     return (
       String(actor.districtId) === String(target.districtId) &&
       String(actor.upazilaId) === String(target.upazilaId) &&

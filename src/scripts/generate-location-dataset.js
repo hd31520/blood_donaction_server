@@ -7,6 +7,8 @@
  * Usage: node generate-location-dataset.js
  */
 
+/* eslint-disable no-console */
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -126,7 +128,6 @@ const generateHierarchicalDataset = () => {
   const unions = allUnions.slice(0, EXPECTED_COUNTS.unions);
 
   // Create lookup maps
-  const divisionMap = new Map(divisions.map((item) => [item.id, item]));
   const districtsByDivision = new Map();
   const upazilasByDistrict = new Map();
   const unionsByUpazila = new Map();
@@ -217,10 +218,8 @@ const generateLookupIndexes = () => {
   const unions = allUnions.slice(0, EXPECTED_COUNTS.unions);
 
   // Create maps for O(1) lookups
-  const divisionMap = new Map(divisions.map((item) => [item.id, item]));
   const districtMap = new Map(districts.map((item) => [item.id, item]));
   const upazilaMap = new Map(upazilas.map((item) => [item.id, item]));
-  const unionMap = new Map(unions.map((item) => [item.id, item]));
 
   return {
     divisions: Object.fromEntries(
