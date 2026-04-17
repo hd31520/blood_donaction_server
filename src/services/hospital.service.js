@@ -29,8 +29,12 @@ const sanitizeHospital = (doc) => ({
 });
 
 const assertAdminCanCreateHospital = (actor) => {
-  if (actor.role !== USER_ROLES.UPAZILA_ADMIN) {
-    throw new ApiError(403, 'Only upazila admin can create hospitals');
+  if (
+    actor.role !== USER_ROLES.SUPER_ADMIN &&
+    actor.role !== USER_ROLES.DISTRICT_ADMIN &&
+    actor.role !== USER_ROLES.UPAZILA_ADMIN
+  ) {
+    throw new ApiError(403, 'Only super admin, district admin, and upazila admin can create hospitals');
   }
 };
 
@@ -56,7 +60,13 @@ const buildHospitalFilter = (actor, filters) => {
     // no scope restriction
   } else if (actor.role === USER_ROLES.DISTRICT_ADMIN) {
     query.districtId = actor.districtId;
-  } else if (actor.role === USER_ROLES.UPAZILA_ADMIN || actor.role === USER_ROLES.FINDER) {
+  } else if (
+    actor.role === USER_ROLES.UPAZILA_ADMIN ||
+    actor.role === USER_ROLES.FINDER ||
+    actor.role === USER_ROLES.DONOR ||
+    actor.role === USER_ROLES.UNION_LEADER ||
+    actor.role === USER_ROLES.WARD_ADMIN
+  ) {
     query.districtId = actor.districtId;
     query.upazilaId = actor.upazilaId;
   } else {
