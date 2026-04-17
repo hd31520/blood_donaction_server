@@ -133,4 +133,46 @@ export const userService = {
 
     return created;
   },
+
+  updateUserRoleByAdmin: async (actor, userId, payload) => {
+    if (!canManageRole(actor.role, payload.role)) {
+      throw new ApiError(403, 'You cannot assign an equal or higher role');
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      throw new ApiError(404, 'User not found');
+    }
+
+    const scopeFilter = buildScopeFilter(actor);
+    const inScope =
+      actor.role === USER_ROLES.SUPER_ADMIN ||
+      Object.entries(scopeFilter).every(([key, value]) => String(targetUser[key]) === String(value));
+
+    if (!inScope) {
+      throw new ApiError(403, 'User is out of your administrative scope');
+    }
+
+    if (actor.role !== USER_ROLES.SUPER_ADMIN && !canManageRole(actor.role, targetUser.role)) {
+      throw new ApiError(403, 'Cannot manage users at equal or higher hierarchy');
+    }
+
+    targetUser.role = payload.role;
+    await targetUser.save();
+
+    if (targetUser.role === USER_ROLES.DONOR) {
+      await DonorProfile.findOneAndUpdate(
+        { userId: targetUser._id },
+        {
+          $setOnInsert: {
+            bloodGroup: targetUser.bloodGroup,
+            availabilityStatus: 'available',
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
+    }
+
+    return sanitizeUser(targetUser.toObject());
+  },
 };

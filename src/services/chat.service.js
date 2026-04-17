@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 import { ChatMessage } from '../models/chat-message.model.js';
 import { ChatThread } from '../models/chat-thread.model.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../shared/utils/api-error.js';
 
@@ -49,6 +50,21 @@ const sanitizeMessage = (message) => {
   };
 };
 
+const ensureChatDatabaseReady = async (operation) => {
+  try {
+    await ensureDatabaseConnection(`chat:${operation}`);
+  } catch (error) {
+    void error;
+  }
+
+  if (mongoose.connection.readyState !== 1) {
+    throw new ApiError(
+      503,
+      'Database is temporarily unavailable. Please retry in a few seconds.',
+    );
+  }
+};
+
 const validateContext = ({ contextType, contextRefId }) => {
   const normalizedContextType = contextType || 'general';
 
@@ -73,6 +89,8 @@ const validateContext = ({ contextType, contextRefId }) => {
 
 export const chatService = {
   getThreads: async (currentUser) => {
+    await ensureChatDatabaseReady('getThreads');
+
     const threads = await ChatThread.find({
       participants: currentUser._id,
     })
@@ -84,6 +102,8 @@ export const chatService = {
   },
 
   createOrGetThread: async (currentUser, payload) => {
+    await ensureChatDatabaseReady('createOrGetThread');
+
     const { participantUserId } = payload;
 
     if (!participantUserId || !mongoose.isValidObjectId(participantUserId)) {
@@ -134,6 +154,8 @@ export const chatService = {
   },
 
   getMessages: async (currentUser, threadId, query = {}) => {
+    await ensureChatDatabaseReady('getMessages');
+
     if (!mongoose.isValidObjectId(threadId)) {
       throw new ApiError(400, 'Invalid thread id');
     }
@@ -166,6 +188,8 @@ export const chatService = {
   },
 
   sendMessage: async (currentUser, threadId, payload) => {
+    await ensureChatDatabaseReady('sendMessage');
+
     if (!mongoose.isValidObjectId(threadId)) {
       throw new ApiError(400, 'Invalid thread id');
     }

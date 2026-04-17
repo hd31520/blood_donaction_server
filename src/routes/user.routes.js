@@ -5,6 +5,7 @@ import {
 	createUsersByAdminBulk,
 	getUserById,
 	getUsers,
+	updateUserRoleByAdmin,
 } from '../controllers/user.controller.js';
 import {
 	attachCurrentUser,
@@ -46,4 +47,12 @@ userRouter.get(
 	authorizePermission('user:read:union'),
 	authorizeTargetUserAccess('userId'),
 	getUserById,
+);
+
+userRouter.patch(
+	'/:userId/role',
+	authorizeMinimumRole(USER_ROLES.UNION_LEADER),
+	authorizePermission('user:update:union'),
+	authorizeTargetUserAccess('userId'),
+	updateUserRoleByAdmin,
 );
