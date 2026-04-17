@@ -9,6 +9,7 @@ import { hospitalRouter } from './routes/hospital.routes.js';
 import { notificationRouter } from './routes/notification.routes.js';
 import { patientRouter } from './routes/patient.routes.js';
 import { reportRouter } from './routes/report.routes.js';
+import { chatRouter } from './routes/chat.routes.js';
 import { upazilaSettingsRouter } from './routes/upazila-settings.routes.js';
 import { userRouter } from './routes/user.routes.js';
 
@@ -25,4 +26,5 @@ routes.use('/hospitals', hospitalRouter);
 routes.use('/patients', patientRouter);
 routes.use('/notifications', notificationRouter);
 routes.use('/reports', reportRouter);
+routes.use('/chats', chatRouter);
 routes.use('/upazila-settings', upazilaSettingsRouter);

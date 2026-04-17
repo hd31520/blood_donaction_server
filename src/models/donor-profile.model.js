@@ -45,6 +45,18 @@ const donorProfileSchema = new mongoose.Schema(
       default: 'available',
       index: true,
     },
+    isPhoneVisible: {
+      type: Boolean,
+      default: true,
+    },
+    allowDonorChat: {
+      type: Boolean,
+      default: true,
+    },
+    allowPatientChat: {
+      type: Boolean,
+      default: true,
+    },
     donationHistory: {
       type: [donationHistorySchema],
       default: [],

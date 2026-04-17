@@ -21,6 +21,9 @@ const sanitizeDonorProfile = (profile) => {
     bloodGroup: profile.bloodGroup,
     lastDonationDate: profile.lastDonationDate,
     availabilityStatus: profile.availabilityStatus,
+    isPhoneVisible: profile.isPhoneVisible !== false,
+    allowDonorChat: profile.allowDonorChat !== false,
+    allowPatientChat: profile.allowPatientChat !== false,
     donationHistory: profile.donationHistory,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
@@ -41,6 +44,12 @@ const buildPublicDonorProfile = (userDoc, profileDoc) => {
     lastDonationDate: profileDoc?.lastDonationDate || null,
     availabilityStatus: profileDoc?.availabilityStatus || 'available',
     location: userDoc.location || null,
+    phone: profileDoc?.isPhoneVisible === false ? null : userDoc.phone || null,
+    contactPreferences: {
+      isPhoneVisible: profileDoc?.isPhoneVisible !== false,
+      allowDonorChat: profileDoc?.allowDonorChat !== false,
+      allowPatientChat: profileDoc?.allowPatientChat !== false,
+    },
     locationNames: {
       division: userDoc.locationNames?.division || null,
       district: userDoc.locationNames?.district || null,
@@ -72,15 +81,23 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
           bloodGroup: userDoc.bloodGroup || null,
           lastDonationDate: null,
           availabilityStatus: 'available',
+          isPhoneVisible: true,
+          allowDonorChat: true,
+          allowPatientChat: true,
           donationHistory: [],
           createdAt: userDoc.createdAt || null,
           updatedAt: userDoc.updatedAt || null,
         }),
         donor: {
           name: userDoc.name,
-          phone: userDoc.phone,
+          phone: profile?.isPhoneVisible === false ? null : userDoc.phone,
           location: userDoc.location,
           profileImageUrl: userDoc.profileImageUrl || null,
+          contactPreferences: {
+            isPhoneVisible: profile?.isPhoneVisible !== false,
+            allowDonorChat: profile?.allowDonorChat !== false,
+            allowPatientChat: profile?.allowPatientChat !== false,
+          },
           locationNames: {
             division: userDoc.locationNames?.division || null,
             district: userDoc.locationNames?.district || null,
@@ -110,14 +127,28 @@ export const donorProfileService = {
   upsertMyProfile: async (currentUser, payload) => {
     assertDonorRole(currentUser);
 
+    const profileUpdate = {
+      bloodGroup: payload.bloodGroup,
+      lastDonationDate: payload.lastDonationDate || null,
+      availabilityStatus: payload.availabilityStatus,
+    };
+
+    if (typeof payload.isPhoneVisible === 'boolean') {
+      profileUpdate.isPhoneVisible = payload.isPhoneVisible;
+    }
+
+    if (typeof payload.allowDonorChat === 'boolean') {
+      profileUpdate.allowDonorChat = payload.allowDonorChat;
+    }
+
+    if (typeof payload.allowPatientChat === 'boolean') {
+      profileUpdate.allowPatientChat = payload.allowPatientChat;
+    }
+
     const profile = await DonorProfile.findOneAndUpdate(
       { userId: currentUser._id },
       {
-        $set: {
-          bloodGroup: payload.bloodGroup,
-          lastDonationDate: payload.lastDonationDate || null,
-          availabilityStatus: payload.availabilityStatus,
-        },
+        $set: profileUpdate,
       },
       {
         upsert: true,

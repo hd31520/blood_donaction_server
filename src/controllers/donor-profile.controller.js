@@ -8,6 +8,9 @@ const donorProfileSchema = z.object({
   bloodGroup: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
   lastDonationDate: z.coerce.date().optional(),
   availabilityStatus: z.enum(['available', 'unavailable', 'temporarily_unavailable']),
+  isPhoneVisible: z.boolean().optional(),
+  allowDonorChat: z.boolean().optional(),
+  allowPatientChat: z.boolean().optional(),
 });
 
 const donationHistorySchema = z.object({
