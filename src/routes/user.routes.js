@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
 	createUserByAdmin,
 	createUsersByAdminBulk,
+	getUserManagementMeta,
 	getUserById,
 	getUsers,
 	updateUserRoleByAdmin,
@@ -32,6 +33,13 @@ userRouter.post(
 	authorizeMinimumRole(USER_ROLES.UNION_LEADER),
 	authorizePermission('user:create:union'),
 	createUsersByAdminBulk,
+);
+
+userRouter.get(
+	'/meta',
+	authorizeMinimumRole(USER_ROLES.UNION_LEADER),
+	authorizePermission('user:read:union'),
+	getUserManagementMeta,
 );
 
 userRouter.get(

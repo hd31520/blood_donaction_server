@@ -37,6 +37,15 @@ export const getUsers = asyncHandler(async (req, res) => {
   });
 });
 
+export const getUserManagementMeta = asyncHandler(async (req, res) => {
+  const meta = await userService.getUserManagementMeta(req.currentUser);
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: meta,
+  });
+});
+
 export const getUserById = asyncHandler(async (req, res) => {
   const user = await userService.getUserById(req.params.userId, req.currentUser);
 

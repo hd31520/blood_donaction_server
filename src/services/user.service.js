@@ -1,6 +1,12 @@
 import { ApiError } from '../shared/utils/api-error.js';
 import { ensureDatabaseConnection } from '../config/db.js';
-import { ROLE_LABELS, USER_ROLES, buildScopeFilter, canManageRole } from '../config/access-control.js';
+import {
+  ROLE_LABELS,
+  ROLE_LEVEL,
+  USER_ROLES,
+  buildScopeFilter,
+  canManageRole,
+} from '../config/access-control.js';
 import { locationService } from './location.service.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
 import { User } from '../models/user.model.js';
@@ -52,7 +58,63 @@ const assertNewUserScope = (actor, payload) => {
   }
 };
 
+const ROLE_DESCRIPTIONS = {
+  [USER_ROLES.SUPER_ADMIN]: 'Full user management, donor access, reporting, and notifications.',
+  [USER_ROLES.DISTRICT_ADMIN]: 'District-scoped user and donor management with district reports.',
+  [USER_ROLES.UPAZILA_ADMIN]: 'Upazila-scoped user and donor management with upazila reports.',
+  [USER_ROLES.UNION_LEADER]: 'Union-scoped user and donor operations with local reporting.',
+  [USER_ROLES.WARD_ADMIN]: 'Ward-scoped user and donor operations with local reporting.',
+  [USER_ROLES.DONOR]: 'Self-level donor profile, history, blood-need actions, and notifications.',
+  [USER_ROLES.FINDER]: 'Self-level donor discovery and blood-need actions with notifications.',
+};
+
+const ROLE_BADGES = {
+  [USER_ROLES.SUPER_ADMIN]: 'Global',
+  [USER_ROLES.DISTRICT_ADMIN]: 'District',
+  [USER_ROLES.UPAZILA_ADMIN]: 'Upazila',
+  [USER_ROLES.UNION_LEADER]: 'Union',
+  [USER_ROLES.WARD_ADMIN]: 'Ward',
+  [USER_ROLES.DONOR]: 'Self',
+  [USER_ROLES.FINDER]: 'Self',
+};
+
+const ROLES_REQUIRING_AREA_TYPE = [
+  USER_ROLES.UNION_LEADER,
+  USER_ROLES.WARD_ADMIN,
+  USER_ROLES.DONOR,
+  USER_ROLES.FINDER,
+];
+
+const ROLES_REQUIRING_UNION = [...ROLES_REQUIRING_AREA_TYPE];
+
 export const userService = {
+  getUserManagementMeta: async (actor) => {
+    const allRoles = Object.values(USER_ROLES);
+    const assignableRoles = allRoles.filter((role) => canManageRole(actor.role, role));
+    const defaultCreateRole = assignableRoles.includes(USER_ROLES.DONOR)
+      ? USER_ROLES.DONOR
+      : assignableRoles[0] || null;
+
+    const roles = allRoles
+      .map((role) => ({
+        role,
+        title: ROLE_LABELS[role] || role,
+        description: ROLE_DESCRIPTIONS[role] || 'Role details unavailable.',
+        badge: ROLE_BADGES[role] || 'General',
+        level: ROLE_LEVEL[role] || 0,
+      }))
+      .sort((a, b) => b.level - a.level);
+
+    return {
+      actorRole: actor.role,
+      assignableRoles,
+      defaultCreateRole,
+      roles,
+      rolesRequiringAreaType: ROLES_REQUIRING_AREA_TYPE,
+      rolesRequiringUnionSelection: ROLES_REQUIRING_UNION,
+    };
+  },
+
   getAllUsers: async (actor) => {
     await ensureDatabaseConnection('users:getAllUsers');
 
