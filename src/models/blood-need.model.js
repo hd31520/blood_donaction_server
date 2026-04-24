@@ -89,6 +89,26 @@ const bloodNeedSchema = new mongoose.Schema(
       default: 'pending',
       index: true,
     },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+      index: true,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectedReason: {
+      type: String,
+      trim: true,
+      maxlength: 300,
+    },
     needsRegularBlood: {
       type: Boolean,
       default: false,
@@ -145,6 +165,7 @@ const bloodNeedSchema = new mongoose.Schema(
     timestamps: true,
     indexes: [
       { bloodGroup: 1, status: 1 },
+      { approvalStatus: 1, status: 1 },
       { 'location.upazila': 1, status: 1 },
       { urgencyLevel: 1, status: 1 },
       { createdAt: -1 },
