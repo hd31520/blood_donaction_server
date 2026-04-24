@@ -1,22 +1,53 @@
 import mongoose from 'mongoose';
 
-import { buildScopeFilter } from '../config/access-control.js';
+import { USER_ROLES, buildScopeFilter } from '../config/access-control.js';
 import { ensureDatabaseConnection } from '../config/db.js';
 import { Notification, NOTIFICATION_TYPES } from '../models/notification.model.js';
 import { User } from '../models/user.model.js';
 import { ApiError } from '../shared/utils/api-error.js';
 
-const sanitizeNotification = (item) => {
+const ADMIN_ROLES = [
+  USER_ROLES.SUPER_ADMIN,
+  USER_ROLES.DISTRICT_ADMIN,
+  USER_ROLES.UPAZILA_ADMIN,
+  USER_ROLES.UNION_LEADER,
+  USER_ROLES.WARD_ADMIN,
+];
+
+const sanitizeNotification = (item) => ({
+  id: item._id,
+  recipientUserId: item.recipientUserId,
+  type: item.type,
+  title: item.title,
+  message: item.message,
+  metadata: item.metadata,
+  isRead: item.isRead,
+  readAt: item.readAt,
+  createdAt: item.createdAt,
+});
+
+const createSystemNotifications = async (items = []) => {
+  const docs = items.filter((item) => item?.recipientUserId);
+  if (!docs.length) {
+    return [];
+  }
+
+  const created = await Notification.insertMany(docs, { ordered: false });
+  return created.map(sanitizeNotification);
+};
+
+const adminScopeQueryForBloodNeed = (bloodNeed) => {
+  const location = bloodNeed.location || {};
+
   return {
-    id: item._id,
-    recipientUserId: item.recipientUserId,
-    type: item.type,
-    title: item.title,
-    message: item.message,
-    metadata: item.metadata,
-    isRead: item.isRead,
-    readAt: item.readAt,
-    createdAt: item.createdAt,
+    role: { $in: ADMIN_ROLES },
+    $or: [
+      { role: USER_ROLES.SUPER_ADMIN },
+      { role: USER_ROLES.DISTRICT_ADMIN, districtId: location.district },
+      { role: USER_ROLES.UPAZILA_ADMIN, districtId: location.district, upazilaId: location.upazila },
+      { role: USER_ROLES.UNION_LEADER, districtId: location.district, upazilaId: location.upazila, unionId: location.union },
+      { role: USER_ROLES.WARD_ADMIN, districtId: location.district, upazilaId: location.upazila, unionId: location.union },
+    ],
   };
 };
 
@@ -26,7 +57,6 @@ export const notificationService = {
 
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
-
     const filter = { recipientUserId: currentUser._id };
 
     if (query.unreadOnly) {
@@ -46,12 +76,7 @@ export const notificationService = {
 
     return {
       data: items.map(sanitizeNotification),
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
@@ -64,12 +89,7 @@ export const notificationService = {
 
     const item = await Notification.findOneAndUpdate(
       { _id: notificationId, recipientUserId: currentUser._id },
-      {
-        $set: {
-          isRead: true,
-          readAt: new Date(),
-        },
-      },
+      { $set: { isRead: true, readAt: new Date() } },
       { new: true },
     );
 
@@ -85,17 +105,10 @@ export const notificationService = {
 
     const updateResult = await Notification.updateMany(
       { recipientUserId: currentUser._id, isRead: false },
-      {
-        $set: {
-          isRead: true,
-          readAt: new Date(),
-        },
-      },
+      { $set: { isRead: true, readAt: new Date() } },
     );
 
-    return {
-      updatedCount: updateResult.modifiedCount,
-    };
+    return { updatedCount: updateResult.modifiedCount };
   },
 
   createNotification: async (currentUser, payload) => {
@@ -118,6 +131,52 @@ export const notificationService = {
     });
 
     return sanitizeNotification(item);
+  },
+
+  notifyAdminsForBloodNeedReview: async (bloodNeed, createdByUserId) => {
+    await ensureDatabaseConnection('notification:notifyAdminsForBloodNeedReview');
+
+    const admins = await User.find(adminScopeQueryForBloodNeed(bloodNeed)).select('_id').lean();
+
+    return createSystemNotifications(
+      admins.map((admin) => ({
+        recipientUserId: admin._id,
+        type: NOTIFICATION_TYPES.DONATION_REQUEST,
+        title: 'নতুন রক্তের অনুরোধ অনুমোদন প্রয়োজন',
+        message: `${bloodNeed.patientName} এর জন্য ${bloodNeed.bloodGroup} রক্তের অনুরোধ এসেছে। যাচাই করে approve/reject করুন।`,
+        metadata: {
+          bloodNeedId: bloodNeed._id,
+          patientName: bloodNeed.patientName,
+          bloodGroup: bloodNeed.bloodGroup,
+          approvalStatus: bloodNeed.approvalStatus || 'pending',
+        },
+        createdByUserId,
+      })),
+    );
+  },
+
+  notifyRequesterForBloodNeedApproval: async (bloodNeed, approvalStatus, createdByUserId) => {
+    await ensureDatabaseConnection('notification:notifyRequesterForBloodNeedApproval');
+
+    const approved = approvalStatus === 'approved';
+
+    return createSystemNotifications([
+      {
+        recipientUserId: bloodNeed.userId?._id || bloodNeed.userId,
+        type: NOTIFICATION_TYPES.DONATION_APPROVAL,
+        title: approved ? 'রক্তের অনুরোধ অনুমোদিত হয়েছে' : 'রক্তের অনুরোধ বাতিল হয়েছে',
+        message: approved
+          ? `${bloodNeed.patientName} এর রক্তের অনুরোধ এখন পাবলিক তালিকায় দেখা যাবে।`
+          : `${bloodNeed.patientName} এর রক্তের অনুরোধ approve করা হয়নি।`,
+        metadata: {
+          bloodNeedId: bloodNeed._id,
+          patientName: bloodNeed.patientName,
+          bloodGroup: bloodNeed.bloodGroup,
+          approvalStatus,
+        },
+        createdByUserId,
+      },
+    ]);
   },
 
   seedDemoNotificationsForCurrentUser: async (currentUser) => {
