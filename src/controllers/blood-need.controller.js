@@ -1,4 +1,80 @@
+import mongoose from 'mongoose';
+import { StatusCodes } from 'http-status-codes';
+
 import { bloodNeedService } from '../services/blood-need.service.js';
+import { Division } from '../models/division.model.js';
+import { District } from '../models/district.model.js';
+import { Upazila } from '../models/upazila.model.js';
+import { Union } from '../models/union.model.js';
+import { ApiError } from '../shared/utils/api-error.js';
+
+const toExternalId = (value) => {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    return Number.parseInt(value, 10);
+  }
+
+  return null;
+};
+
+const resolveLocationId = async (Model, value, fieldName, { required = true } = {}) => {
+  if (!value) {
+    if (required) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, `${fieldName} is required`);
+    }
+
+    return undefined;
+  }
+
+  if (mongoose.isValidObjectId(value)) {
+    return value;
+  }
+
+  const externalId = toExternalId(value);
+  if (externalId === null) {
+    if (required) {
+      throw new ApiError(
+        StatusCodes.BAD_REQUEST,
+        `${fieldName} must be a valid ObjectId or numeric externalId`,
+      );
+    }
+
+    return undefined;
+  }
+
+  const entity = await Model.findOne({ externalId }).select('_id').lean();
+  if (!entity?._id) {
+    if (required) {
+      throw new ApiError(StatusCodes.NOT_FOUND, `${fieldName} not found`);
+    }
+
+    return undefined;
+  }
+
+  return entity._id.toString();
+};
+
+const normalizeBloodNeedLocation = async (location = {}) => {
+  const normalizedLocation = {
+    division: await resolveLocationId(Division, location.division, 'location.division'),
+    district: await resolveLocationId(District, location.district, 'location.district'),
+    upazila: await resolveLocationId(Upazila, location.upazila, 'location.upazila'),
+  };
+
+  const union = await resolveLocationId(Union, location.union, 'location.union', { required: false });
+  if (union) {
+    normalizedLocation.union = union;
+  }
+
+  if (location.area) {
+    normalizedLocation.area = location.area;
+  }
+
+  return normalizedLocation;
+};
 
 export const createBloodNeed = async (req, res, next) => {
   try {
@@ -27,6 +103,8 @@ export const createBloodNeed = async (req, res, next) => {
       });
     }
 
+    const normalizedLocation = await normalizeBloodNeedLocation(location);
+
     const bloodNeed = await bloodNeedService.createBloodNeed(
       {
         userId: req.currentUser._id,
@@ -36,7 +114,7 @@ export const createBloodNeed = async (req, res, next) => {
         unitsRequired: unitsRequired || 1,
         hospital,
         hospitalName,
-        location,
+        location: normalizedLocation,
         urgencyLevel: urgencyLevel || 'medium',
         needsRegularBlood: needsRegularBlood || false,
         medicalCondition: medicalCondition || 'none',
@@ -152,7 +230,11 @@ export const searchBloodNeedsInScope = async (req, res, next) => {
 export const updateBloodNeed = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const data = { ...req.body };
+
+    if (data.location) {
+      data.location = await normalizeBloodNeedLocation(data.location);
+    }
 
     const bloodNeed = await bloodNeedService.updateBloodNeed(id, data, req.currentUser._id);
 
