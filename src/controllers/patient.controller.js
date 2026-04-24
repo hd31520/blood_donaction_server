@@ -35,3 +35,25 @@ export const listPatients = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getPatientById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const patient = await patientService.getPatientById(id);
+
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        message: 'রোগীর তথ্য পাওয়া যায়নি',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: patient,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
