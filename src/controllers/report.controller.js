@@ -10,6 +10,15 @@ const monthlyReportQuerySchema = z.object({
   format: z.enum(['json', 'csv']).default('json'),
 });
 
+export const getDashboardAnalytics = asyncHandler(async (req, res) => {
+  const report = await reportService.getDashboardAnalytics(req.currentUser);
+
+  return res.status(StatusCodes.OK).json({
+    success: true,
+    data: report,
+  });
+});
+
 export const getMonthlyDonorReport = asyncHandler(async (req, res) => {
   const query = monthlyReportQuerySchema.parse(req.query);
 
