@@ -15,6 +15,17 @@ import { routes } from './routes.js';
 
 export const app = express();
 
+app.disable('x-powered-by');
+
+const isLocalOrigin = (origin) => {
+  try {
+    const { hostname } = new URL(origin);
+    return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+  } catch {
+    return false;
+  }
+};
+
 const buildAllowedOrigins = () => {
   if (env.CLIENT_URL === '*') {
     return '*';
@@ -22,9 +33,10 @@ const buildAllowedOrigins = () => {
 
   const configuredOrigins = env.CLIENT_URL.split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((origin) => env.NODE_ENV !== 'production' || !isLocalOrigin(origin));
 
-  const defaultDevOrigins = [
+  const defaultDevOrigins = env.NODE_ENV === 'production' ? [] : [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:4173',
@@ -33,17 +45,9 @@ const buildAllowedOrigins = () => {
     'http://127.0.0.1:8080',
   ];
 
-  // Add Vercel deployment origins for both exact and common variations
-  const vercelOrigins = [
-    'https://blood-donaction-clint.vercel.app',
-    'https://blood-donaction-client.vercel.app',
-    'https://blood-donaction.vercel.app',
-  ];
-
   const normalizedOrigins = new Set([
     ...configuredOrigins,
     ...defaultDevOrigins,
-    ...(env.NODE_ENV === 'production' ? vercelOrigins : []),
   ]);
 
   for (const origin of [...normalizedOrigins]) {
@@ -77,7 +81,20 @@ const isProjectVercelOrigin = (origin) => {
   }
 };
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    hsts:
+      env.NODE_ENV === 'production'
+        ? {
+            maxAge: 31536000,
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+    referrerPolicy: { policy: 'no-referrer' },
+  }),
+);
 app.use(
   cors({
     origin: (origin, callback) => {
@@ -91,7 +108,7 @@ app.use(
         return;
       }
 
-      if (isProjectVercelOrigin(origin)) {
+      if (env.ALLOW_VERCEL_PREVIEW_ORIGINS && isProjectVercelOrigin(origin)) {
         callback(null, true);
         return;
       }

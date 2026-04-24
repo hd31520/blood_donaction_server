@@ -10,6 +10,13 @@ import { ApiError } from '../shared/utils/api-error.js';
 const DONOR_SEARCH_CACHE_TTL_MS = 60 * 1000;
 const DONATION_COOLDOWN_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DONOR_DIRECTORY_ROLES = new Set([
+  USER_ROLES.SUPER_ADMIN,
+  USER_ROLES.DISTRICT_ADMIN,
+  USER_ROLES.UPAZILA_ADMIN,
+  USER_ROLES.UNION_LEADER,
+  USER_ROLES.WARD_ADMIN,
+]);
 
 const toStartOfDay = (value) => {
   const date = new Date(value);
@@ -310,22 +317,21 @@ export const donorProfileService = {
   searchDonors: async (currentUser, filters) => {
     await ensureDatabaseConnection('donorProfile:searchDonors');
 
+    if (!DONOR_DIRECTORY_ROLES.has(currentUser.role)) {
+      throw new ApiError(403, 'Donor directory is available only to local and higher admins');
+    }
+
     const page = Math.max(1, Number(filters.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(filters.limit) || 20));
 
-    // Regular donors and finders can see all donors
-    // Admins see only donors in their scope
     let userFilter = {
       role: USER_ROLES.DONOR,
     };
 
-    if (currentUser.role !== USER_ROLES.DONOR && currentUser.role !== USER_ROLES.FINDER) {
-      // Apply scope filter only for admin users
-      userFilter = {
-        ...userFilter,
-        ...buildScopeFilter(currentUser),
-      };
-    }
+    userFilter = {
+      ...userFilter,
+      ...buildScopeFilter(currentUser),
+    };
 
     const objectIdFilters = [
       ['divisionId', filters.divisionId],

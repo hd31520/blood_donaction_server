@@ -7,6 +7,18 @@ mongoose.set('bufferCommands', false);
 
 let connectionPromise = null;
 
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const getConnectionOptions = () => ({
+  serverSelectionTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
+  connectTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
+  socketTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
+  maxPoolSize: 10,
+  minPoolSize: 1,
+});
+
 const waitForExistingConnection = async () => {
   try {
     await mongoose.connection.asPromise();
@@ -18,6 +30,56 @@ const waitForExistingConnection = async () => {
     });
     throw error;
   }
+};
+
+const connectWithRetry = async () => {
+  const maxAttempts = env.DB_CONNECT_RETRIES + 1;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        logger.info('Retrying MongoDB connection', {
+          attempt,
+          maxAttempts,
+          timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
+        });
+      }
+
+      await mongoose.connect(env.MONGODB_URI, getConnectionOptions());
+
+      logger.info('MongoDB connected', {
+        attempt,
+        timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
+      });
+
+      return mongoose.connection;
+    } catch (error) {
+      lastError = error;
+
+      logger.warn('MongoDB connection attempt failed', {
+        attempt,
+        maxAttempts,
+        message: error?.message,
+        timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
+      });
+
+      if (attempt >= maxAttempts) {
+        break;
+      }
+
+      await mongoose.disconnect().catch(() => {});
+      await sleep(env.DB_RETRY_DELAY_MS * attempt);
+    }
+  }
+
+  logger.error('MongoDB connection failed after retries', {
+    attempts: maxAttempts,
+    message: lastError?.message,
+    timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
+  });
+
+  throw lastError;
 };
 
 export const connectDatabase = async () => {
@@ -39,27 +101,7 @@ export const connectDatabase = async () => {
     return connectionPromise;
   }
 
-  connectionPromise = mongoose
-    .connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
-      connectTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
-      socketTimeoutMS: env.DB_CONNECT_TIMEOUT_MS,
-      maxPoolSize: 10,
-      minPoolSize: 1,
-    })
-    .then(() => {
-      logger.info('MongoDB connected', {
-        timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
-      });
-      return mongoose.connection;
-    })
-    .catch((error) => {
-      logger.error('MongoDB connection failed', {
-        message: error?.message,
-        timeoutMs: env.DB_CONNECT_TIMEOUT_MS,
-      });
-      throw error;
-    })
+  connectionPromise = connectWithRetry()
     .finally(() => {
       connectionPromise = null;
     });

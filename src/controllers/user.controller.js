@@ -23,9 +23,29 @@ const createUserByAdminSchema = z.object({
   divisionId: z.string().optional(),
   districtId: z.string().optional(),
   upazilaId: z.string().optional(),
+  areaType: z.enum(['union', 'pouroshava']).optional(),
   unionId: z.string().optional(),
+  unionName: z.string().max(120).optional(),
+  wardNumber: z.string().max(20).optional(),
   location: z.string().max(180).optional(),
   phone: z.string().max(30).optional(),
+});
+
+const localAdminQuerySchema = z.object({
+  divisionId: z.string().optional(),
+  districtId: z.string().optional(),
+  upazilaId: z.string().optional(),
+  unionId: z.string().optional(),
+});
+
+export const getPublicLocalAdmins = asyncHandler(async (req, res) => {
+  const filters = localAdminQuerySchema.parse(req.query);
+  const users = await userService.listPublicLocalAdmins(filters);
+
+  res.status(StatusCodes.OK).json({
+    success: true,
+    data: users,
+  });
 });
 
 export const getUsers = asyncHandler(async (req, res) => {

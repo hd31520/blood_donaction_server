@@ -40,6 +40,15 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
+  if (String(err?.message || '').includes('before initial connection is complete')) {
+    console.warn('[API][DB_NOT_READY]', requestContext);
+
+    return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+      success: false,
+      message: 'Database is temporarily unavailable. Please retry in a few seconds.',
+    });
+  }
+
   const statusCode = err.statusCode || StatusCodes.INTERNAL_SERVER_ERROR;
   const message = err.message || 'Internal server error';
 

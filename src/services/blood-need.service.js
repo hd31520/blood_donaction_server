@@ -1,5 +1,8 @@
+import { USER_ROLES } from '../config/access-control.js';
+import { ensureDatabaseConnection } from '../config/db.js';
 import { BloodNeed } from '../models/blood-need.model.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
+import { Notification, NOTIFICATION_TYPES } from '../models/notification.model.js';
 import { User } from '../models/user.model.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,8 +55,48 @@ const normalizeCondition = (value) => {
   return ['thalassemia', 'other_regular'].includes(value) ? value : 'none';
 };
 
+const notifyLocalAdminsForBloodNeed = async (bloodNeed, createdBy) => {
+  const unionId = bloodNeed.location?.union;
+
+  if (!unionId) {
+    return;
+  }
+
+  const localAdmins = await User.find({
+    _id: { $ne: createdBy },
+    role: { $in: [USER_ROLES.UNION_LEADER, USER_ROLES.WARD_ADMIN] },
+    districtId: bloodNeed.location?.district,
+    upazilaId: bloodNeed.location?.upazila,
+    unionId,
+  })
+    .select('_id')
+    .lean();
+
+  if (!localAdmins.length) {
+    return;
+  }
+
+  await Notification.insertMany(
+    localAdmins.map((admin) => ({
+      recipientUserId: admin._id,
+      type: NOTIFICATION_TYPES.DONATION_REQUEST,
+      title: 'নতুন রক্তের অনুরোধ',
+      message: `${bloodNeed.patientName} এর জন্য ${bloodNeed.bloodGroup} রক্ত প্রয়োজন।`,
+      metadata: {
+        bloodNeedId: bloodNeed._id,
+        bloodGroup: bloodNeed.bloodGroup,
+        urgencyLevel: bloodNeed.urgencyLevel,
+        unionId,
+      },
+      createdByUserId: createdBy,
+    })),
+  );
+};
+
 export const bloodNeedService = {
   async createBloodNeed(data, createdBy) {
+    await ensureDatabaseConnection('bloodNeed:createBloodNeed');
+
     const needsRegularBlood = toBoolean(data.needsRegularBlood);
     const medicalCondition = normalizeCondition(data.medicalCondition);
     const shouldKeep = needsRegularBlood || medicalCondition !== 'none';
@@ -65,10 +108,23 @@ export const bloodNeedService = {
       autoDeleteAt: shouldKeep ? null : new Date(Date.now() + SEVEN_DAYS_MS),
       createdBy,
     });
-    return bloodNeed.save();
+    const savedBloodNeed = await bloodNeed.save();
+
+    try {
+      await notifyLocalAdminsForBloodNeed(savedBloodNeed, createdBy);
+    } catch (error) {
+      console.error('[BLOOD_NEED][LOCAL_ADMIN_NOTIFY_FAILED]', {
+        bloodNeedId: savedBloodNeed._id?.toString?.() || String(savedBloodNeed._id || ''),
+        reason: error?.message,
+      });
+    }
+
+    return savedBloodNeed;
   },
 
   async getBloodNeedById(id) {
+    await ensureDatabaseConnection('bloodNeed:getBloodNeedById');
+
     return BloodNeed.findById(id)
       .populate('userId', 'name email phone')
       .populate('hospital', 'name address')
@@ -80,6 +136,8 @@ export const bloodNeedService = {
   },
 
   async getMyBloodNeeds(userId) {
+    await ensureDatabaseConnection('bloodNeed:getMyBloodNeeds');
+
     return BloodNeed.find({ userId })
       .populate('hospital', 'name address')
       .populate('location.division', 'name')
@@ -91,6 +149,8 @@ export const bloodNeedService = {
   },
 
   async searchBloodNeeds(filters = {}) {
+    await ensureDatabaseConnection('bloodNeed:searchBloodNeeds');
+
     const {
       bloodGroup,
       status,
@@ -161,6 +221,8 @@ export const bloodNeedService = {
   },
 
   async searchBloodNeedsInScope(scope, filters = {}) {
+    await ensureDatabaseConnection('bloodNeed:searchBloodNeedsInScope');
+
     const {
       bloodGroup,
       status,
@@ -220,6 +282,8 @@ export const bloodNeedService = {
   },
 
   async updateBloodNeed(id, data, userId) {
+    await ensureDatabaseConnection('bloodNeed:updateBloodNeed');
+
     const bloodNeed = await BloodNeed.findById(id);
     if (!bloodNeed) {
       throw new Error('Blood need request not found');
@@ -234,6 +298,8 @@ export const bloodNeedService = {
   },
 
   async addDonorToBloodNeed(bloodNeedId, donorUserId) {
+    await ensureDatabaseConnection('bloodNeed:addDonorToBloodNeed');
+
     const bloodNeed = await BloodNeed.findById(bloodNeedId);
     if (!bloodNeed) {
       throw new Error('Blood need request not found');
@@ -268,6 +334,8 @@ export const bloodNeedService = {
   },
 
   async cancelBloodNeed(id, userId) {
+    await ensureDatabaseConnection('bloodNeed:cancelBloodNeed');
+
     const bloodNeed = await BloodNeed.findById(id);
     if (!bloodNeed) {
       throw new Error('Blood need request not found');
@@ -286,6 +354,8 @@ export const bloodNeedService = {
   },
 
   async getPublicBloodNeeds(filters = {}) {
+    await ensureDatabaseConnection('bloodNeed:getPublicBloodNeeds');
+
     const { bloodGroup, urgencyLevel, districtId, page = 1, limit = 20 } = filters;
 
     const query = { status: { $in: ['pending', 'in_progress'] } };

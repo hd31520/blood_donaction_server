@@ -46,8 +46,15 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   DB_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+  DB_CONNECT_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  DB_RETRY_DELAY_MS: z.coerce.number().int().positive().default(800),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(200),
+  AUTH_RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(20),
+  ALLOW_VERCEL_PREVIEW_ORIGINS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 const parsed = envSchema.safeParse(process.env);

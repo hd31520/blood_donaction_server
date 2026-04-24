@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { ensureDatabaseConnection } from '../config/db.js';
 import { BloodNeed } from '../models/blood-need.model.js';
 
 const sanitizePatient = (doc) => ({
@@ -45,6 +46,8 @@ const sanitizePatient = (doc) => ({
 
 export const patientService = {
   async listPatients(filters = {}) {
+    await ensureDatabaseConnection('patient:listPatients');
+
     const {
       patientName,
       bloodGroup,
@@ -52,6 +55,7 @@ export const patientService = {
       divisionId,
       districtId,
       upazilaId,
+      unionId,
       page = 1,
       limit = 20,
     } = filters;
@@ -82,6 +86,10 @@ export const patientService = {
 
     if (upazilaId && mongoose.isValidObjectId(upazilaId)) {
       query['location.upazila'] = new mongoose.Types.ObjectId(upazilaId);
+    }
+
+    if (unionId && mongoose.isValidObjectId(unionId)) {
+      query['location.union'] = new mongoose.Types.ObjectId(unionId);
     }
 
     const currentPage = Math.max(1, Number(page) || 1);

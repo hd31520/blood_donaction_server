@@ -9,6 +9,7 @@ export const listPatients = async (req, res, next) => {
       divisionId,
       districtId,
       upazilaId,
+      unionId,
       page,
       limit,
     } = req.query;
@@ -20,6 +21,7 @@ export const listPatients = async (req, res, next) => {
       divisionId,
       districtId,
       upazilaId,
+      unionId,
       page,
       limit,
     });

@@ -9,13 +9,13 @@ export const USER_ROLES = {
 };
 
 export const ROLE_LABELS = {
-  [USER_ROLES.SUPER_ADMIN]: 'Super Admin',
-  [USER_ROLES.DISTRICT_ADMIN]: 'District Admin',
-  [USER_ROLES.UPAZILA_ADMIN]: 'Upazila Admin',
-  [USER_ROLES.UNION_LEADER]: 'Union Leader',
-  [USER_ROLES.WARD_ADMIN]: 'Ward Admin',
-  [USER_ROLES.DONOR]: 'Donor',
-  [USER_ROLES.FINDER]: 'Finder',
+  [USER_ROLES.SUPER_ADMIN]: 'সুপার অ্যাডমিন',
+  [USER_ROLES.DISTRICT_ADMIN]: 'জেলা অ্যাডমিন',
+  [USER_ROLES.UPAZILA_ADMIN]: 'উপজেলা অ্যাডমিন',
+  [USER_ROLES.UNION_LEADER]: 'ইউনিয়ন দায়িত্বশীল',
+  [USER_ROLES.WARD_ADMIN]: 'ওয়ার্ড অ্যাডমিন',
+  [USER_ROLES.DONOR]: 'রক্তদাতা',
+  [USER_ROLES.FINDER]: 'রক্ত খুঁজছেন',
 };
 
 export const ROLE_LEVEL = {

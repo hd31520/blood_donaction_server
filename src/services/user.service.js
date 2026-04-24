@@ -1,5 +1,6 @@
 import { ApiError } from '../shared/utils/api-error.js';
 import { ensureDatabaseConnection } from '../config/db.js';
+import mongoose from 'mongoose';
 import {
   ROLE_LABELS,
   ROLE_LEVEL,
@@ -32,6 +33,37 @@ const sanitizeUser = (userDoc) => {
   };
 };
 
+const sanitizePublicLocalAdmin = (userDoc) => {
+  return {
+    id: userDoc._id,
+    name: userDoc.name,
+    role: userDoc.role,
+    roleLabel: ROLE_LABELS[userDoc.role],
+    phone: userDoc.phone || null,
+    areaType: userDoc.areaType || null,
+    wardNumber: userDoc.wardNumber || userDoc.locationNames?.wardNumber || null,
+    locationNames: {
+      division: userDoc.locationNames?.division || null,
+      district: userDoc.locationNames?.district || null,
+      upazila: userDoc.locationNames?.upazila || null,
+      union: userDoc.locationNames?.union || null,
+      wardNumber: userDoc.locationNames?.wardNumber || null,
+    },
+  };
+};
+
+const applyObjectIdFilter = (query, field, value) => {
+  if (!value) {
+    return;
+  }
+
+  if (!mongoose.isValidObjectId(value)) {
+    throw new ApiError(400, `${field} must be a valid ObjectId`);
+  }
+
+  query[field] = new mongoose.Types.ObjectId(value);
+};
+
 const assertNewUserScope = (actor, payload) => {
   if (
     actor.role === USER_ROLES.DISTRICT_ADMIN &&
@@ -59,23 +91,23 @@ const assertNewUserScope = (actor, payload) => {
 };
 
 const ROLE_DESCRIPTIONS = {
-  [USER_ROLES.SUPER_ADMIN]: 'Full user management, donor access, reporting, and notifications.',
-  [USER_ROLES.DISTRICT_ADMIN]: 'District-scoped user and donor management with district reports.',
-  [USER_ROLES.UPAZILA_ADMIN]: 'Upazila-scoped user and donor management with upazila reports.',
-  [USER_ROLES.UNION_LEADER]: 'Union-scoped user and donor operations with local reporting.',
-  [USER_ROLES.WARD_ADMIN]: 'Ward-scoped user and donor operations with local reporting.',
-  [USER_ROLES.DONOR]: 'Self-level donor profile, history, blood-need actions, and notifications.',
-  [USER_ROLES.FINDER]: 'Self-level donor discovery and blood-need actions with notifications.',
+  [USER_ROLES.SUPER_ADMIN]: 'সব ইউজার, রক্তদাতা, রিপোর্ট ও নোটিফিকেশন পরিচালনা।',
+  [USER_ROLES.DISTRICT_ADMIN]: 'নিজ জেলার ইউজার, রক্তদাতা ও রিপোর্ট পরিচালনা।',
+  [USER_ROLES.UPAZILA_ADMIN]: 'নিজ উপজেলার ইউজার, রক্তদাতা ও রিপোর্ট পরিচালনা।',
+  [USER_ROLES.UNION_LEADER]: 'নিজ ইউনিয়নের রক্তদাতা ও স্থানীয় রিপোর্ট পরিচালনা।',
+  [USER_ROLES.WARD_ADMIN]: 'নিজ ওয়ার্ড/ইউনিয়নের রক্তদাতা ও স্থানীয় রিপোর্ট পরিচালনা।',
+  [USER_ROLES.DONOR]: 'নিজ প্রোফাইল, রক্তদানের ইতিহাস ও অনুরোধ পরিচালনা।',
+  [USER_ROLES.FINDER]: 'নিজ অনুরোধ, নোটিফিকেশন ও প্রয়োজনীয় যোগাযোগ পরিচালনা।',
 };
 
 const ROLE_BADGES = {
-  [USER_ROLES.SUPER_ADMIN]: 'Global',
-  [USER_ROLES.DISTRICT_ADMIN]: 'District',
-  [USER_ROLES.UPAZILA_ADMIN]: 'Upazila',
-  [USER_ROLES.UNION_LEADER]: 'Union',
-  [USER_ROLES.WARD_ADMIN]: 'Ward',
-  [USER_ROLES.DONOR]: 'Self',
-  [USER_ROLES.FINDER]: 'Self',
+  [USER_ROLES.SUPER_ADMIN]: 'জাতীয়',
+  [USER_ROLES.DISTRICT_ADMIN]: 'জেলা',
+  [USER_ROLES.UPAZILA_ADMIN]: 'উপজেলা',
+  [USER_ROLES.UNION_LEADER]: 'ইউনিয়ন',
+  [USER_ROLES.WARD_ADMIN]: 'ওয়ার্ড',
+  [USER_ROLES.DONOR]: 'নিজ',
+  [USER_ROLES.FINDER]: 'নিজ',
 };
 
 const ROLES_REQUIRING_AREA_TYPE = [
@@ -88,6 +120,28 @@ const ROLES_REQUIRING_AREA_TYPE = [
 const ROLES_REQUIRING_UNION = [...ROLES_REQUIRING_AREA_TYPE];
 
 export const userService = {
+  listPublicLocalAdmins: async (filters = {}) => {
+    await ensureDatabaseConnection('users:listPublicLocalAdmins');
+
+    const query = {
+      role: { $in: [USER_ROLES.UNION_LEADER, USER_ROLES.WARD_ADMIN] },
+      phone: { $exists: true, $nin: [null, ''] },
+    };
+
+    applyObjectIdFilter(query, 'divisionId', filters.divisionId);
+    applyObjectIdFilter(query, 'districtId', filters.districtId);
+    applyObjectIdFilter(query, 'upazilaId', filters.upazilaId);
+    applyObjectIdFilter(query, 'unionId', filters.unionId);
+
+    const users = await User.find(query)
+      .select('_id name role phone areaType wardNumber locationNames')
+      .sort({ role: 1, name: 1 })
+      .limit(200)
+      .lean();
+
+    return users.map(sanitizePublicLocalAdmin);
+  },
+
   getUserManagementMeta: async (actor) => {
     const allRoles = Object.values(USER_ROLES);
     const assignableRoles = allRoles.filter((role) => canManageRole(actor.role, role));
@@ -155,7 +209,10 @@ export const userService = {
       divisionId: payload.divisionId,
       districtId: payload.districtId,
       upazilaId: payload.upazilaId,
+      areaType: payload.areaType,
       unionId: payload.unionId,
+      unionName: payload.unionName,
+      wardNumber: payload.wardNumber,
       role: targetRole,
     });
 

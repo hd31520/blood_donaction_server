@@ -17,9 +17,13 @@ import {
   authorizePermission,
 } from '../middleware/auth.middleware.js';
 import { USER_ROLES } from '../config/access-control.js';
+import { requireDatabaseConnection } from '../shared/middleware/database-ready.js';
 
 export const publicBloodNeedRouter = Router();
 export const bloodNeedRouter = Router();
+
+publicBloodNeedRouter.use(requireDatabaseConnection('bloodNeed:publicRoutes'));
+bloodNeedRouter.use(requireDatabaseConnection('bloodNeed:protectedRoutes'));
 
 // Public routes - no authentication required
 publicBloodNeedRouter.get('/public/search', getPublicBloodNeeds);

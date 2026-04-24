@@ -1,13 +1,17 @@
 import { app } from './app.js';
 import { connectDatabase } from './config/db.js';
+import { logger } from './config/logger.js';
 
 let databaseConnectionPromise = null;
 
-const ensureDatabaseConnection = async () => {
+const warmDatabaseConnection = () => {
   if (!databaseConnectionPromise) {
     databaseConnectionPromise = connectDatabase().catch((error) => {
+      logger.error('MongoDB warm connection failed in serverless handler', {
+        message: error?.message,
+      });
+    }).finally(() => {
       databaseConnectionPromise = null;
-      throw error;
     });
   }
 
@@ -15,6 +19,6 @@ const ensureDatabaseConnection = async () => {
 };
 
 export const handler = async (req, res) => {
-  await ensureDatabaseConnection();
+  void warmDatabaseConnection();
   return app(req, res);
 };

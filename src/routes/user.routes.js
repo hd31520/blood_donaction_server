@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
 	createUserByAdmin,
 	createUsersByAdminBulk,
+	getPublicLocalAdmins,
 	getUserManagementMeta,
 	getUserById,
 	getUsers,
@@ -18,6 +19,8 @@ import {
 import { USER_ROLES } from '../config/access-control.js';
 
 export const userRouter = Router();
+
+userRouter.get('/public/local-admins', getPublicLocalAdmins);
 
 userRouter.use(authenticate, attachCurrentUser);
 
