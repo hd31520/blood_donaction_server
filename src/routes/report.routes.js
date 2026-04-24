@@ -13,9 +13,14 @@ export const reportRouter = Router();
 
 reportRouter.use(authenticate, attachCurrentUser);
 
-reportRouter.get(
-  '/monthly/donors',
+const monthlyDonorReportMiddlewares = [
   authorizeMinimumRole(USER_ROLES.UNION_LEADER),
   authorizePermission('report:read:union'),
   getMonthlyDonorReport,
-);
+];
+
+// Current canonical route
+reportRouter.get('/monthly/donors', ...monthlyDonorReportMiddlewares);
+
+// Backward-compatible route used by the frontend
+reportRouter.get('/monthly-donor', ...monthlyDonorReportMiddlewares);
