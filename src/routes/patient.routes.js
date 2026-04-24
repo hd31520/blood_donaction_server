@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { listPatients } from '../controllers/patient.controller.js';
+import { listPatients, getPatientById } from '../controllers/patient.controller.js';
 import {
   attachCurrentUser,
   authenticate,
@@ -14,6 +14,7 @@ export const patientRouter = Router();
 patientRouter.use(requireDatabaseConnection('patient:routes'));
 
 patientRouter.get('/', listPatients);
+patientRouter.get('/:id', getPatientById);
 
 patientRouter.use(authenticate, attachCurrentUser);
 
