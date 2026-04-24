@@ -12,6 +12,10 @@ const sanitizePatient = (doc) => ({
   unitsReceived: doc.unitsReceived || 0,
   urgencyLevel: doc.urgencyLevel,
   status: doc.status,
+  approvalStatus: doc.approvalStatus || 'pending',
+  approvedBy: doc.approvedBy || null,
+  approvedAt: doc.approvedAt || null,
+  rejectedReason: doc.rejectedReason || null,
   needsRegularBlood: doc.needsRegularBlood || false,
   medicalCondition: doc.medicalCondition || 'none',
   autoDeleteAt: doc.autoDeleteAt || null,
@@ -46,14 +50,17 @@ const sanitizePatient = (doc) => ({
   updatedAt: doc.updatedAt,
 });
 
-const patientDetailsQuery = () =>
-  BloodNeed.findById()
+const populatePatientQuery = (query) =>
+  query
     .populate('userId', 'name phone')
     .populate('hospital', 'name address')
     .populate('location.division', 'name')
     .populate('location.district', 'name')
     .populate('location.upazila', 'name')
     .populate('location.union', 'name');
+
+const isAdminLikeRole = (role) =>
+  ['super_admin', 'district_admin', 'upazila_admin', 'union_leader', 'ward_admin'].includes(role);
 
 export const patientService = {
   async listPatients(filters = {}) {
@@ -63,6 +70,8 @@ export const patientService = {
       patientName,
       bloodGroup,
       status,
+      approvalStatus,
+      includePending = false,
       divisionId,
       districtId,
       upazilaId,
@@ -87,6 +96,12 @@ export const patientService = {
       query.status = { $ne: 'cancelled' };
     }
 
+    if (includePending && approvalStatus) {
+      query.approvalStatus = approvalStatus;
+    } else if (!includePending) {
+      query.approvalStatus = 'approved';
+    }
+
     if (divisionId && mongoose.isValidObjectId(divisionId)) {
       query['location.division'] = new mongoose.Types.ObjectId(divisionId);
     }
@@ -108,14 +123,8 @@ export const patientService = {
     const skip = (currentPage - 1) * pageSize;
 
     const [data, total] = await Promise.all([
-      BloodNeed.find(query)
-        .populate('userId', 'name phone')
-        .populate('hospital', 'name address')
-        .populate('location.division', 'name')
-        .populate('location.district', 'name')
-        .populate('location.upazila', 'name')
-        .populate('location.union', 'name')
-        .sort({ createdAt: -1 })
+      populatePatientQuery(BloodNeed.find(query))
+        .sort({ approvalStatus: 1, urgencyLevel: -1, createdAt: -1 })
         .skip(skip)
         .limit(pageSize)
         .lean(),
@@ -133,16 +142,48 @@ export const patientService = {
     };
   },
 
-  async getPatientById(id) {
+  async getPatientById(id, currentUser = null) {
     await ensureDatabaseConnection('patient:getPatientById');
 
     if (!mongoose.isValidObjectId(id)) {
       return null;
     }
 
-    const patient = await patientDetailsQuery()
-      .setQuery({ _id: new mongoose.Types.ObjectId(id) })
-      .lean();
+    const patient = await populatePatientQuery(BloodNeed.findById(id)).lean();
+
+    if (!patient) {
+      return null;
+    }
+
+    const canViewPending = currentUser && (
+      isAdminLikeRole(currentUser.role) ||
+      String(patient.userId?._id || patient.userId) === String(currentUser._id)
+    );
+
+    if ((patient.approvalStatus || 'pending') !== 'approved' && !canViewPending) {
+      return null;
+    }
+
+    return sanitizePatient(patient);
+  },
+
+  async updateApprovalStatus(id, currentUser, approvalStatus, rejectedReason = '') {
+    await ensureDatabaseConnection('patient:updateApprovalStatus');
+
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    const update = {
+      approvalStatus,
+      approvedBy: approvalStatus === 'approved' ? currentUser._id : null,
+      approvedAt: approvalStatus === 'approved' ? new Date() : null,
+      rejectedReason: approvalStatus === 'rejected' ? rejectedReason || 'Rejected by admin' : '',
+    };
+
+    const patient = await populatePatientQuery(
+      BloodNeed.findByIdAndUpdate(id, { $set: update }, { new: true }),
+    ).lean();
 
     return patient ? sanitizePatient(patient) : null;
   },
