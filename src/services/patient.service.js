@@ -18,6 +18,8 @@ const sanitizePatient = (doc) => ({
   requiredDate: doc.requiredDate,
   contactPhone: doc.contactPhone,
   contactPerson: doc.contactPerson || null,
+  description: doc.description || null,
+  notes: doc.notes || null,
   hospital: doc.hospital
     ? {
         id: doc.hospital._id,
@@ -43,6 +45,15 @@ const sanitizePatient = (doc) => ({
   createdAt: doc.createdAt,
   updatedAt: doc.updatedAt,
 });
+
+const patientDetailsQuery = () =>
+  BloodNeed.findById()
+    .populate('userId', 'name phone')
+    .populate('hospital', 'name address')
+    .populate('location.division', 'name')
+    .populate('location.district', 'name')
+    .populate('location.upazila', 'name')
+    .populate('location.union', 'name');
 
 export const patientService = {
   async listPatients(filters = {}) {
@@ -120,5 +131,19 @@ export const patientService = {
         totalPages: Math.ceil(total / pageSize),
       },
     };
+  },
+
+  async getPatientById(id) {
+    await ensureDatabaseConnection('patient:getPatientById');
+
+    if (!mongoose.isValidObjectId(id)) {
+      return null;
+    }
+
+    const patient = await patientDetailsQuery()
+      .setQuery({ _id: new mongoose.Types.ObjectId(id) })
+      .lean();
+
+    return patient ? sanitizePatient(patient) : null;
   },
 };
