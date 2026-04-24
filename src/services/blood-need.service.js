@@ -1,8 +1,14 @@
+import mongoose from 'mongoose';
+
 import { USER_ROLES } from '../config/access-control.js';
 import { ensureDatabaseConnection } from '../config/db.js';
 import { BloodNeed } from '../models/blood-need.model.js';
+import { District } from '../models/district.model.js';
+import { Division } from '../models/division.model.js';
 import { DonorProfile } from '../models/donor-profile.model.js';
 import { Notification, NOTIFICATION_TYPES } from '../models/notification.model.js';
+import { Union } from '../models/union.model.js';
+import { Upazila } from '../models/upazila.model.js';
 import { User } from '../models/user.model.js';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -55,6 +61,50 @@ const normalizeCondition = (value) => {
   return ['thalassemia', 'other_regular'].includes(value) ? value : 'none';
 };
 
+const isNumericId = (value) => /^\d+$/.test(String(value || '').trim());
+
+const resolveLocationObjectId = async (Model, value, fieldName, required = true) => {
+  if (!value) {
+    if (required) {
+      throw new Error(`${fieldName} is required`);
+    }
+    return undefined;
+  }
+
+  if (mongoose.isValidObjectId(value)) {
+    return new mongoose.Types.ObjectId(value);
+  }
+
+  if (isNumericId(value)) {
+    const entity = await Model.findOne({ externalId: Number(value) }).select('_id').lean();
+    if (entity?._id) {
+      return entity._id;
+    }
+  }
+
+  if (required) {
+    throw new Error(`${fieldName} not found`);
+  }
+
+  return undefined;
+};
+
+const normalizeBloodNeedLocation = async (location = {}) => {
+  const normalized = {
+    division: await resolveLocationObjectId(Division, location.division, 'division'),
+    district: await resolveLocationObjectId(District, location.district, 'district'),
+    upazila: await resolveLocationObjectId(Upazila, location.upazila, 'upazila'),
+    area: location.area || location.unionName || undefined,
+  };
+
+  const unionId = await resolveLocationObjectId(Union, location.union, 'union', false);
+  if (unionId) {
+    normalized.union = unionId;
+  }
+
+  return normalized;
+};
+
 const notifyLocalAdminsForBloodNeed = async (bloodNeed, createdBy) => {
   const unionId = bloodNeed.location?.union;
 
@@ -100,9 +150,11 @@ export const bloodNeedService = {
     const needsRegularBlood = toBoolean(data.needsRegularBlood);
     const medicalCondition = normalizeCondition(data.medicalCondition);
     const shouldKeep = needsRegularBlood || medicalCondition !== 'none';
+    const normalizedLocation = await normalizeBloodNeedLocation(data.location || {});
 
     const bloodNeed = new BloodNeed({
       ...data,
+      location: normalizedLocation,
       needsRegularBlood,
       medicalCondition,
       autoDeleteAt: shouldKeep ? null : new Date(Date.now() + SEVEN_DAYS_MS),
@@ -233,7 +285,6 @@ export const bloodNeedService = {
 
     const query = { status: { $ne: 'cancelled' } };
 
-    // Apply scope filter
     if (scope.upazilaId) {
       query['location.upazila'] = scope.upazilaId;
     } else if (scope.districtId) {
