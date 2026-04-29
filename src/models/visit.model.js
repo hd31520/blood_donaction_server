@@ -26,6 +26,28 @@ const visitSchema = new mongoose.Schema(
       trim: true,
       maxlength: 500,
     },
+    location: {
+      division: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Division',
+        index: true,
+      },
+      district: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'District',
+        index: true,
+      },
+      upazila: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Upazila',
+        index: true,
+      },
+      union: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Union',
+        index: true,
+      },
+    },
     visitedAt: {
       type: Date,
       default: Date.now,
@@ -45,5 +67,6 @@ const visitSchema = new mongoose.Schema(
 
 visitSchema.index({ visitDate: 1, path: 1 });
 visitSchema.index({ sessionId: 1, visitDate: 1 });
+visitSchema.index({ 'location.district': 1, 'location.upazila': 1, 'location.union': 1, path: 1 });
 
 export const Visit = mongoose.model('Visit', visitSchema);
