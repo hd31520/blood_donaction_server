@@ -9,6 +9,7 @@ export const trackVisit = asyncHandler(async (req, res) => {
     path: req.body?.path || '/',
     referrer: req.headers.referer || '',
     userAgent: req.headers['user-agent'] || '',
+    location: req.body?.location || {},
   });
 
   res.status(StatusCodes.CREATED).json({ success: true, data });
@@ -16,5 +17,10 @@ export const trackVisit = asyncHandler(async (req, res) => {
 
 export const getVisitStats = asyncHandler(async (req, res) => {
   const data = await analyticsService.getVisitStats();
+  res.status(StatusCodes.OK).json({ success: true, data });
+});
+
+export const getAdminAreaSummary = asyncHandler(async (req, res) => {
+  const data = await analyticsService.getAdminAreaSummary(req.currentUser);
   res.status(StatusCodes.OK).json({ success: true, data });
 });
