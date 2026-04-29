@@ -44,6 +44,61 @@ const getDonationEligibility = (lastDonationDate) => {
   };
 };
 
+const getDaysSinceDonation = (lastDonationDate) => {
+  if (!lastDonationDate) {
+    return DONATION_COOLDOWN_DAYS;
+  }
+
+  const lastDate = toStartOfDay(lastDonationDate);
+  const today = toStartOfDay(new Date());
+  return Math.max(0, Math.floor((today.getTime() - lastDate.getTime()) / DAY_MS));
+};
+
+const getResolvedAvailability = (donor) => {
+  if (!donor.isEligibleForDonation) {
+    return 'temporarily_unavailable';
+  }
+
+  return donor.availabilityStatus || 'available';
+};
+
+const getDonorSortRank = (donor) => {
+  const resolvedAvailability = getResolvedAvailability(donor);
+
+  if (donor.isEligibleForDonation && resolvedAvailability === 'available') {
+    return 0;
+  }
+
+  if (donor.isEligibleForDonation) {
+    return 1;
+  }
+
+  return 2;
+};
+
+const sortDonorsByEligibility = (donors) => {
+  return [...donors].sort((a, b) => {
+    const rankDifference = getDonorSortRank(a) - getDonorSortRank(b);
+    if (rankDifference !== 0) {
+      return rankDifference;
+    }
+
+    if (!a.isEligibleForDonation || !b.isEligibleForDonation) {
+      const waitingDifference = Number(a.daysUntilEligible || 0) - Number(b.daysUntilEligible || 0);
+      if (waitingDifference !== 0) {
+        return waitingDifference;
+      }
+    }
+
+    const daysSinceDifference = getDaysSinceDonation(b.lastDonationDate) - getDaysSinceDonation(a.lastDonationDate);
+    if (daysSinceDifference !== 0) {
+      return daysSinceDifference;
+    }
+
+    return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+  });
+};
+
 const assertNotFutureDonationDate = (value) => {
   if (!value) {
     return;
@@ -78,6 +133,7 @@ const sanitizeDonorProfile = (profile) => {
     isEligibleForDonation: eligibility.isEligibleForDonation,
     nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
     daysUntilEligible: eligibility.daysUntilEligible,
+    daysSinceDonation: getDaysSinceDonation(profile.lastDonationDate),
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
   };
@@ -120,6 +176,7 @@ const buildPublicDonorProfile = (userDoc, profileDoc) => {
     isEligibleForDonation: eligibility.isEligibleForDonation,
     nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
     daysUntilEligible: eligibility.daysUntilEligible,
+    daysSinceDonation: getDaysSinceDonation(profileDoc?.lastDonationDate || null),
     createdAt: profileDoc?.createdAt || userDoc.createdAt || null,
     updatedAt: profileDoc?.updatedAt || userDoc.updatedAt || null,
   };
@@ -147,12 +204,14 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
           isEligibleForDonation: true,
           nextEligibleDonationDate: null,
           daysUntilEligible: 0,
+          daysSinceDonation: DONATION_COOLDOWN_DAYS,
           createdAt: userDoc.createdAt || null,
           updatedAt: userDoc.updatedAt || null,
         }),
         isEligibleForDonation: eligibility.isEligibleForDonation,
         nextEligibleDonationDate: eligibility.nextEligibleDonationDate,
         daysUntilEligible: eligibility.daysUntilEligible,
+        daysSinceDonation: getDaysSinceDonation(profile?.lastDonationDate || null),
         donor: {
           name: userDoc.name,
           phone: profile?.isPhoneVisible === false ? null : userDoc.phone,
@@ -174,7 +233,9 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
     })
     .filter(Boolean)
     .filter((donor) => {
-      if (filters.availabilityStatus && donor.availabilityStatus !== filters.availabilityStatus) {
+      const resolvedAvailability = getResolvedAvailability(donor);
+
+      if (filters.availabilityStatus && resolvedAvailability !== filters.availabilityStatus) {
         return false;
       }
 
@@ -185,7 +246,7 @@ const buildDonorSearchResults = (userDocs, profileDocs, filters = {}) => {
       return true;
     });
 
-  return data;
+  return sortDonorsByEligibility(data);
 };
 
 export const donorProfileService = {
